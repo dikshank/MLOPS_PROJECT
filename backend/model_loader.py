@@ -9,11 +9,13 @@ Caches model in memory — no reloading per request.
 The mlruns/ folder is mounted as a Docker volume so the backend
 always sees the latest Production model without rebuilding the container.
 
-Auto-reload: if the Production model version changes (after retraining),
-the backend detects it on the next health check and reloads.
+Key design: loads model directly from the mlruns/ folder using run_id
+and artifact path — avoids Windows absolute path issues that occur when
+training happens on Windows but serving happens in Linux Docker container.
 """
 
 import os
+import glob
 import torch
 import mlflow
 import mlflow.pytorch
@@ -30,23 +32,18 @@ REGISTERED_MODEL_NAME = "melanoma_classifier"
 MODEL_STAGE            = "Production"
 
 # ── Global model cache ────────────────────────────────────────────────────────
-_model       = None
-_model_meta  = {
-    "version":    None,
-    "name":       None,
-    "run_id":     None,
-    "threshold":  0.35    # default fallback threshold
+_model      = None
+_model_meta = {
+    "version":   None,
+    "name":      None,
+    "run_id":    None,
+    "threshold": 0.35
 }
 
 
 def _get_mlruns_path() -> str:
-    """
-    Get the MLflow tracking URI from environment variable or default.
-
-    Returns:
-        str: Path to mlruns/ folder.
-    """
-    return os.environ.get("MLFLOW_TRACKING_URI", "./mlruns")
+    """Get MLflow tracking URI from environment or default."""
+    return os.environ.get("MLFLOW_TRACKING_URI", "/mlruns")
 
 
 def _get_production_version() -> tuple:
@@ -71,9 +68,42 @@ def _get_production_version() -> tuple:
         return None, None
 
 
+def _find_model_path(run_id: str, mlruns_path: str) -> str:
+    """
+    Find the pytorch_model directory directly in mlruns/ folder.
+
+    This bypasses the Windows absolute path stored in MLflow artifacts
+    by searching the mlruns/ folder directly using the run_id.
+
+    Args:
+        run_id (str): MLflow run ID.
+        mlruns_path (str): Path to mlruns/ folder inside container.
+
+    Returns:
+        str: Path to the pytorch_model directory.
+
+    Raises:
+        FileNotFoundError: If model directory cannot be found.
+    """
+    # mlruns structure: mlruns/<experiment_id>/<run_id>/artifacts/pytorch_model
+    pattern = str(Path(mlruns_path) / "*" / run_id / "artifacts" / "pytorch_model")
+    matches = glob.glob(pattern)
+
+    if not matches:
+        raise FileNotFoundError(
+            f"Could not find pytorch_model for run_id={run_id} "
+            f"in mlruns path={mlruns_path}. "
+            f"Searched pattern: {pattern}"
+        )
+
+    model_path = matches[0]
+    logger.info("Found model at: %s", model_path)
+    return model_path
+
+
 def _get_threshold_from_run(run_id: str) -> float:
     """
-    Retrieve the best_threshold param logged during training for this run.
+    Retrieve the best_threshold param logged during training.
 
     Args:
         run_id (str): MLflow run ID.
@@ -87,7 +117,7 @@ def _get_threshold_from_run(run_id: str) -> float:
         threshold = run.data.params.get("best_threshold", None)
         if threshold is not None:
             return float(threshold)
-        logger.warning("No best_threshold found in run %s. Using 0.35", run_id)
+        logger.warning("No best_threshold in run %s. Using 0.35", run_id)
         return 0.35
     except Exception as e:
         logger.warning(
@@ -101,34 +131,42 @@ def load_model() -> bool:
     """
     Load the Production model from MLflow registry into memory.
 
-    Called once at FastAPI startup.
-    Also called by the reload check when a new Production model is detected.
+    Uses run_id to find model directly in mlruns/ folder,
+    bypassing any Windows absolute paths stored in MLflow metadata.
 
     Returns:
         bool: True if model loaded successfully, False otherwise.
     """
     global _model, _model_meta
 
-    mlflow.set_tracking_uri(_get_mlruns_path())
+    mlruns_path = _get_mlruns_path()
+    mlflow.set_tracking_uri(mlruns_path)
 
     version, run_id = _get_production_version()
 
     if version is None:
         logger.error(
             "No Production model found in MLflow registry. "
-            "Train a model first and ensure it gets promoted to Production."
+            "Train a model first."
         )
         MODEL_LOAD_STATUS.set(0)
         return False
 
     try:
-        model_uri = f"models:/{REGISTERED_MODEL_NAME}/{MODEL_STAGE}"
-        logger.info("Loading model from: %s (version %s)", model_uri, version)
+        # ── Find model directly in mlruns/ folder ─────────────────────────
+        # This avoids Windows path issues in stored artifact URIs
+        model_path = _find_model_path(run_id, mlruns_path)
 
-        model = mlflow.pytorch.load_model(model_uri, map_location="cpu")
+        logger.info(
+            "Loading model from local path: %s (version %s)",
+            model_path, version
+        )
+
+        # ── Load PyTorch model ────────────────────────────────────────────
+        model = mlflow.pytorch.load_model(model_path, map_location="cpu")
         model.eval()
 
-        # ── Fetch threshold from training run ─────────────────────────────
+        # ── Fetch threshold ───────────────────────────────────────────────
         threshold = _get_threshold_from_run(run_id)
 
         # ── Cache in memory ───────────────────────────────────────────────
@@ -137,7 +175,7 @@ def load_model() -> bool:
         _model_meta["run_id"]    = run_id
         _model_meta["threshold"] = threshold
 
-        # ── Update Prometheus model info ──────────────────────────────────
+        # ── Update Prometheus metrics ─────────────────────────────────────
         MODEL_INFO.info({
             "version":   str(version),
             "run_id":    run_id,
@@ -159,32 +197,18 @@ def load_model() -> bool:
 
 
 def get_model():
-    """
-    Get the cached model instance.
-
-    Returns:
-        torch.nn.Module or None: Loaded model, or None if not loaded.
-    """
+    """Get the cached model instance."""
     return _model
 
 
 def get_model_meta() -> dict:
-    """
-    Get metadata about the currently loaded model.
-
-    Returns:
-        dict: version, run_id, threshold, name.
-    """
+    """Get metadata about the currently loaded model."""
     return _model_meta.copy()
 
 
 def check_and_reload() -> bool:
     """
-    Check if a new Production model version is available.
-    If so, reload the model automatically.
-
-    Called periodically by the /health endpoint to enable
-    zero-downtime model updates after retraining.
+    Check if a new Production model version is available and reload if so.
 
     Returns:
         bool: True if model was reloaded, False if no change.
