@@ -1,0 +1,15 @@
+project flow
+
+# initialize git
+git add .
+git commit -m "phase 0: initial project setup"
+
+# initialize dvc
+dvc init
+git add .dvc .dvcignore
+git commit -m "phase 0: dvc init"
+
+
+# airflow for data version1
+cd airflow
+docker compose -f docker-compose-airflow.yml up
