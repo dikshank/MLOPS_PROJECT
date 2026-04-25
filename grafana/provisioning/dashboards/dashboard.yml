@@ -1,0 +1,15 @@
+# ============================================================
+# Grafana Dashboard Provisioning
+# Phase 4 | Tells Grafana where to find dashboard JSON files
+# ============================================================
+
+apiVersion: 1
+
+providers:
+  - name: "melanoma"
+    orgId: 1
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards

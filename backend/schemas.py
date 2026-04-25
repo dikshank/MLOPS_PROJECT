@@ -1,0 +1,89 @@
+"""
+schemas.py
+----------
+Phase 4 | Executed: Local (backend Docker container)
+
+Pydantic schemas for FastAPI request and response models.
+
+Defines the API contract — matches exactly what is specified in LLD.md.
+All endpoints use these schemas for input validation and response formatting.
+"""
+
+from pydantic import BaseModel, Field
+from typing import Optional
+
+
+class PredictResponse(BaseModel):
+    """
+    Response schema for POST /predict endpoint.
+
+    Attributes:
+        label         : Predicted class — 'malignant' or 'benign'
+        confidence    : Model confidence for the predicted class (0.0 to 1.0)
+        malignant_prob: Raw probability of malignant class (0.0 to 1.0)
+        threshold_used: Classification threshold applied to malignant_prob
+        recommendation: Human-readable advice for non-technical users
+    """
+    label: str = Field(..., example="malignant")
+    confidence: float = Field(..., ge=0.0, le=1.0, example=0.87)
+    malignant_prob: float = Field(..., ge=0.0, le=1.0, example=0.87)
+    threshold_used: float = Field(..., ge=0.0, le=1.0, example=0.35)
+    recommendation: str = Field(
+        ...,
+        example="High risk detected. Please consult a dermatologist immediately."
+    )
+
+
+class HealthResponse(BaseModel):
+    """
+    Response schema for GET /health endpoint.
+
+    Attributes:
+        status: Service status — always 'ok' if service is running
+    """
+    status: str = Field(..., example="ok")
+
+
+class ReadyResponse(BaseModel):
+    """
+    Response schema for GET /ready endpoint.
+
+    Attributes:
+        model_loaded  : Whether the model has been loaded successfully
+        model_name    : Name of the loaded model architecture
+        model_version : MLflow registry version of the loaded model
+        status        : 'ready' if model is loaded, 'not_ready' otherwise
+    """
+    model_loaded: bool = Field(..., example=True)
+    model_name: Optional[str] = Field(None, example="mobilenet_v3_small")
+    model_version: Optional[str] = Field(None, example="3")
+    status: str = Field(..., example="ready")
+
+
+class FeedbackRequest(BaseModel):
+    """
+    Request schema for POST /feedback endpoint.
+
+    Used to log ground truth labels for previous predictions.
+    Enables real-world recall tracking and drift detection.
+
+    Attributes:
+        image_id      : Identifier of the image (filename or hash)
+        predicted_label: What the model predicted
+        true_label    : Actual ground truth label from a doctor
+    """
+    image_id: str = Field(..., example="img_20240101_001.jpg")
+    predicted_label: str = Field(..., example="malignant")
+    true_label: str = Field(..., example="malignant")
+
+
+class FeedbackResponse(BaseModel):
+    """
+    Response schema for POST /feedback endpoint.
+
+    Attributes:
+        received      : Whether feedback was successfully recorded
+        message       : Confirmation message
+    """
+    received: bool = Field(..., example=True)
+    message: str = Field(..., example="Feedback recorded. Thank you.")

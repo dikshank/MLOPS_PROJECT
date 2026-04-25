@@ -1,0 +1,20 @@
+# ============================================================
+# python_env.yaml
+# Python environment specification for MLflow Projects.
+# Ensures identical environment for every training run.
+# ============================================================
+
+python: "3.10"
+
+build_dependencies:
+  - pip
+
+dependencies:
+  - torch==2.2.2
+  - torchvision==0.17.2
+  - mlflow==2.12.1
+  - pillow==10.3.0
+  - pandas==2.2.2
+  - scikit-learn==1.4.2
+  - pyyaml==6.0.1
+  - tqdm==4.66.2

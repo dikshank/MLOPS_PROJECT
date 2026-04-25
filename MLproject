@@ -1,0 +1,34 @@
+# ============================================================
+# MLproject
+# MLflow Projects file for reproducible training runs.
+#
+# Usage:
+#   mlflow run . -P config=training/configs/config_v1_mobilenet.yaml
+#   mlflow run . -P config=training/configs/config_v2_mobilenet.yaml
+#
+# Ensures identical environment across dev and test runs.
+# Every training run is reproducible via:
+#   git commit hash + mlflow run ID
+# ============================================================
+
+name: melanoma_mlops
+
+python_env: python_env.yaml
+
+entry_points:
+
+  # ── Main training entry point ────────────────────────────────────────
+  main:
+    parameters:
+      config:
+        type: str
+        default: training/configs/config_v1_mobilenet.yaml
+    command: "python training/src/train.py --config {config}"
+
+  # ── EfficientNet baseline ────────────────────────────────────────────
+  train_efficientnet:
+    parameters:
+      config:
+        type: str
+        default: training/configs/config_v1_efficientnet.yaml
+    command: "python training/src/train.py --config {config}"

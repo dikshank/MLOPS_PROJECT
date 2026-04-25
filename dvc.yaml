@@ -1,0 +1,75 @@
+# ============================================================
+# dvc.yaml
+# DVC Pipeline DAG — mirrors the Airflow data pipeline
+#
+# Usage:
+#   dvc repro              → run all stages
+#   dvc repro validate     → run only validate stage
+#   dvc dag                → visualize the pipeline DAG
+#
+# This file satisfies the rubric requirement for a DVC DAG
+# representing the CI pipeline. Every experiment is reproducible
+# via: git commit hash + dvc repro
+# ============================================================
+
+stages:
+
+  # ── Stage 1: Validate raw images ──────────────────────────────────────
+  validate:
+    cmd: python airflow/scripts/validate.py
+    deps:
+      - airflow/scripts/validate.py
+      - airflow/configs/pipeline_config_v1.yaml
+      - data/raw
+    outs:
+      - data/validate_done.flag:
+          cache: false
+
+  # ── Stage 2: Split dataset ─────────────────────────────────────────────
+  split:
+    cmd: python airflow/scripts/split.py
+    deps:
+      - airflow/scripts/split.py
+      - airflow/configs/pipeline_config_v1.yaml
+      - data/validate_done.flag
+    outs:
+      - data/processed/v1/manifests
+
+  # ── Stage 3: Preprocess images ─────────────────────────────────────────
+  preprocess:
+    cmd: python airflow/scripts/preprocess.py
+    deps:
+      - airflow/scripts/preprocess.py
+      - airflow/configs/pipeline_config_v1.yaml
+      - data/processed/v1/manifests
+    outs:
+      - data/processed/v1/train
+      - data/processed/v1/val
+      - data/processed/v1/test
+
+  # ── Stage 4: Compute baseline statistics ──────────────────────────────
+  baseline_stats:
+    cmd: python airflow/scripts/baseline_stats.py
+    deps:
+      - airflow/scripts/baseline_stats.py
+      - airflow/configs/pipeline_config_v1.yaml
+      - data/processed/v1/train
+    outs:
+      - data/baseline_stats/v1_stats.json
+
+  # ── Stage 5: Train model ───────────────────────────────────────────────
+  train:
+    cmd: python training/src/train.py --config training/configs/config_v1_mobilenet.yaml
+    deps:
+      - training/src/train.py
+      - training/src/dataset.py
+      - training/src/model.py
+      - training/src/evaluate.py
+      - training/src/mlflow_utils.py
+      - training/configs/config_v1_mobilenet.yaml
+      - data/processed/v1/manifests
+    outs:
+      - training/models/v1
+    metrics:
+      - training/artifacts/v1_mobilenet/val_metrics.json:
+          cache: false

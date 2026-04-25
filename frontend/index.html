@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>MelanoCheck — Early Melanoma Detection</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+    <!-- ── Header ──────────────────────────────────────────────────────── -->
+    <header>
+        <div class="header-inner">
+            <div class="logo">
+                <span class="logo-icon">🔬</span>
+                <span class="logo-text">MelanoCheck</span>
+            </div>
+            <p class="header-sub">AI-Assisted Melanoma Screening Tool</p>
+        </div>
+    </header>
+
+    <!-- ── Main content ────────────────────────────────────────────────── -->
+    <main>
+
+        <!-- ── Upload card ──────────────────────────────────────────────── -->
+        <section class="card upload-card">
+            <h2>Upload Skin Lesion Image</h2>
+            <p class="card-desc">
+                Upload a photo of the skin lesion. Works with low-resolution
+                images from basic mobile cameras.
+            </p>
+
+            <!-- Drop zone -->
+            <div class="dropzone" id="dropzone">
+                <div class="dropzone-inner" id="dropzone-inner">
+                    <span class="upload-icon">📷</span>
+                    <p>Drag and drop an image here</p>
+                    <p class="or-text">— or —</p>
+                    <label class="btn-upload" for="file-input">
+                        Choose Image
+                    </label>
+                    <input
+                        type="file"
+                        id="file-input"
+                        accept="image/jpeg,image/png"
+                        style="display:none"
+                    />
+                </div>
+
+                <!-- Preview -->
+                <img id="preview-img" class="preview-img hidden" alt="Preview" />
+            </div>
+
+            <!-- Analyse button -->
+            <button class="btn-analyse" id="btn-analyse" disabled>
+                Analyse Image
+            </button>
+        </section>
+
+        <!-- ── Result card (hidden until prediction) ────────────────────── -->
+        <section class="card result-card hidden" id="result-card">
+            <div class="result-header" id="result-header">
+                <span class="result-icon" id="result-icon"></span>
+                <span class="result-label" id="result-label"></span>
+            </div>
+
+            <div class="result-details">
+                <div class="detail-row">
+                    <span class="detail-key">Confidence</span>
+                    <span class="detail-val" id="detail-confidence"></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-key">Malignant Probability</span>
+                    <span class="detail-val" id="detail-prob"></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-key">Threshold Used</span>
+                    <span class="detail-val" id="detail-threshold"></span>
+                </div>
+            </div>
+
+            <div class="recommendation" id="recommendation"></div>
+
+            <!-- Feedback section -->
+            <div class="feedback-section">
+                <p class="feedback-title">Are you a medical professional?</p>
+                <p class="feedback-desc">
+                    If you know the actual diagnosis, please provide feedback
+                    to help improve the model.
+                </p>
+                <div class="feedback-buttons">
+                    <button
+                        class="btn-feedback btn-malignant"
+                        onclick="submitFeedback('malignant')"
+                    >
+                        Confirm: Malignant
+                    </button>
+                    <button
+                        class="btn-feedback btn-benign"
+                        onclick="submitFeedback('benign')"
+                    >
+                        Confirm: Benign
+                    </button>
+                </div>
+                <p class="feedback-status hidden" id="feedback-status"></p>
+            </div>
+
+            <!-- Analyse again -->
+            <button class="btn-reset" onclick="resetUI()">
+                Analyse Another Image
+            </button>
+        </section>
+
+        <!-- ── Loading spinner ──────────────────────────────────────────── -->
+        <div class="spinner-overlay hidden" id="spinner">
+            <div class="spinner"></div>
+            <p>Analysing image...</p>
+        </div>
+
+        <!-- ── Error message ─────────────────────────────────────────────── -->
+        <div class="error-banner hidden" id="error-banner">
+            <span id="error-message"></span>
+        </div>
+
+        <!-- ── System status panel ───────────────────────────────────────── -->
+        <section class="card status-card">
+            <h3>System Status</h3>
+            <div class="status-grid">
+                <div class="status-item">
+                    <span class="status-dot" id="dot-api"></span>
+                    <span>API Server</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-dot" id="dot-model"></span>
+                    <span>Model</span>
+                </div>
+                <div class="status-item">
+                    <a href="http://localhost:5000" target="_blank" class="status-link">
+                        📊 MLflow UI
+                    </a>
+                </div>
+                <div class="status-item">
+                    <a href="http://localhost:3000" target="_blank" class="status-link">
+                        📈 Grafana
+                    </a>
+                </div>
+                <div class="status-item">
+                    <a href="http://localhost:8080" target="_blank" class="status-link">
+                        🔧 Airflow
+                    </a>
+                </div>
+            </div>
+            <p class="model-version" id="model-version-text"></p>
+        </section>
+
+    </main>
+
+    <!-- ── Footer ──────────────────────────────────────────────────────── -->
+    <footer>
+        <p>
+            ⚠️ <strong>Disclaimer:</strong> This tool is for screening purposes only
+            and does not replace professional medical diagnosis. Always consult
+            a qualified dermatologist for any skin concerns.
+        </p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>

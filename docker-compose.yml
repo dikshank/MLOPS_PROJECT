@@ -1,0 +1,110 @@
+# ============================================================
+# docker-compose.yml
+# Phase 4 | Executed: Local (Windows 11)
+#
+# Services:
+#   frontend   → nginx serving HTML/CSS/JS         (port 80)
+#   backend    → FastAPI inference server           (port 8000)
+#   mlflow     → MLflow UI (local registry)        (port 5000)
+#   prometheus → metrics scraper                    (port 9090)
+#   grafana    → NRT dashboard                      (port 3000)
+#
+# Usage:
+#   docker-compose up --build
+#   docker-compose down
+# ============================================================
+
+version: "3.8"
+
+services:
+
+  # ── Frontend: nginx static file server ──────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: melanoma_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ── Backend: FastAPI inference server ───────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: melanoma_backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Path to local MLflow tracking URI inside container
+      # mlruns/ is mounted as a volume so backend always sees latest model
+      MLFLOW_TRACKING_URI: /mlruns
+    volumes:
+      # Mount mlruns/ so backend can load Production model from registry
+      - ./mlruns:/mlruns
+      # Mount logs/ for persistent log files
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── MLflow UI: visualize experiments and model registry ─────────────────
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.12.1
+    container_name: melanoma_mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount mlruns/ so MLflow UI shows all experiments and registry
+      - ./mlruns:/mlruns
+    command: >
+      mlflow ui
+      --backend-store-uri /mlruns
+      --host 0.0.0.0
+      --port 5000
+    restart: unless-stopped
+
+  # ── Prometheus: metrics scraper ──────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: melanoma_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    extra_hosts:
+      # Allows Prometheus to scrape Airflow on host machine (localhost:8080)
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  # ── Grafana: NRT dashboard ───────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: melanoma_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:
+  grafana_data:

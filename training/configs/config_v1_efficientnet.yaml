@@ -1,0 +1,44 @@
+# ============================================================
+# Training Configuration - Data v1 | EfficientNet-B0
+# Baseline experiment: proves low-res approach fails
+# ============================================================
+
+mlflow:
+  tracking_uri: "./mlruns"
+  experiment_name: "baseline-v1"
+  run_name: "efficientnet-b0-baseline"
+  experiment_type: "baseline"
+
+model:
+  name: "efficientnet_b0"
+  img_size: 32                  # native low-res size, no upscaling
+
+  # Freeze strategy
+  freeze_base: true
+  unfreeze_epoch: 5
+  num_layers_to_unfreeze: 2
+
+data:
+  version: "v1"
+  manifest_dir: "C:/Users/YourUsername/mlops_project/data/processed/v1/manifests"
+  baseline_stats_path: "C:/Users/YourUsername/mlops_project/data/baseline_stats/v1_stats.json"
+
+training:
+  epochs: 10
+  batch_size: 16
+  lr_head: 1e-3
+  lr_finetune: 1e-4
+  weight_decay: 1e-4
+  class_weights: [1.0, 2.0]
+  early_stopping_patience: 3
+
+output:
+  model_dir: "C:/Users/YourUsername/mlops_project/training/models/v1"
+  artifacts_dir: "C:/Users/YourUsername/mlops_project/training/artifacts/v1_efficientnet"
+
+# ── Debug mode ────────────────────────────────────────────────────────────────
+debug:
+  enabled: false
+  num_images: 20
+  epochs: 2
+  batch_size: 4

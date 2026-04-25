@@ -1,0 +1,55 @@
+# ============================================================
+# Training Configuration - Data v1 | MobileNetV3-Small
+# Baseline experiment: proves low-res approach fails
+# ============================================================
+
+mlflow:
+  # Local mlruns folder — open UI with: mlflow ui --backend-store-uri ./mlruns
+  tracking_uri: "./mlruns"
+  experiment_name: "baseline-v1"
+  run_name: "mobilenet-v3-small-baseline"
+  experiment_type: "baseline"
+
+model:
+  name: "mobilenet_v3_small"
+  img_size: 32                  # native low-res size, no upscaling
+
+  # Freeze strategy
+  freeze_base: true             # start with frozen base, train head only
+  unfreeze_epoch: 5             # switch to fine-tuning at this epoch
+  num_layers_to_unfreeze: 2     # unfreeze last 2 blocks of base
+
+data:
+  version: "v1"
+  # Update this path to match your local machine
+  manifest_dir: "C:/Users/YourUsername/mlops_project/data/processed/v1/manifests"
+  baseline_stats_path: "C:/Users/YourUsername/mlops_project/data/baseline_stats/v1_stats.json"
+
+training:
+  epochs: 10
+  batch_size: 16
+  lr_head: 1e-3                 # higher lr for head-only phase
+  lr_finetune: 1e-4             # lower lr for fine-tuning phase
+  weight_decay: 1e-4
+
+  # Class weights: malignant gets higher weight
+  # Forces model to pay more attention to malignant cases → higher recall
+  # [benign_weight, malignant_weight]
+  class_weights: [1.0, 2.0]
+
+  # Early stopping: stop if val_recall does not improve for N epochs
+  early_stopping_patience: 3
+
+output:
+  # Update these paths to match your local machine
+  model_dir: "C:/Users/YourUsername/mlops_project/training/models/v1"
+  artifacts_dir: "C:/Users/YourUsername/mlops_project/training/artifacts/v1_mobilenet"
+
+# ── Debug mode ────────────────────────────────────────────────────────────────
+# Set enabled: true to run a quick 2-epoch test on 20 images
+# Verifies the entire pipeline works before committing to full training
+debug:
+  enabled: false
+  num_images: 20
+  epochs: 2
+  batch_size: 4
