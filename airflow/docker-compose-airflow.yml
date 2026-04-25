@@ -2,18 +2,18 @@
 # docker-compose-airflow.yml
 # Phase 1 & 2 | Executed: Local (Windows 11)
 #
+# Spins up Apache Airflow (standalone mode) locally.
+# Mounts your local project scripts, dags, configs, data,
+# logs and training folders into the container.
+#
 # Usage:
-#   docker-compose -f airflow/docker-compose-airflow.yml up --build
+#   docker-compose -f airflow/docker-compose-airflow.yml up
 #   Open: http://localhost:8080
 #   Default login: admin / admin
 # ============================================================
 
-version: "3.8"
-
 x-airflow-common: &airflow-common
-  build:
-    context: .
-    dockerfile: Dockerfile
+  image: apache/airflow:2.8.1-python3.10
   environment:
     AIRFLOW__CORE__EXECUTOR: SequentialExecutor
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
@@ -29,19 +29,20 @@ x-airflow-common: &airflow-common
     - ./scripts:/opt/airflow/scripts
     - ./configs:/opt/airflow/configs
     - airflow-db:/opt/airflow
+    - airflow-logs:/opt/airflow/logs
     - ../data:/opt/airflow/data
-    - ../logs:/opt/airflow/logs
+    - ../logs:/opt/airflow/app_logs
     - ../training:/opt/airflow/training
 
 services:
 
-  # ── Airflow Init ─────────────────────────────────────────────────────────
   airflow-init:
     <<: *airflow-common
     entrypoint: /bin/bash
     command:
       - -c
       - |
+        pip install --user pyyaml scikit-learn pillow pandas --quiet
         airflow db init
         airflow users create \
           --username admin \
@@ -50,13 +51,16 @@ services:
           --lastname MLOps \
           --role Admin \
           --email admin@melanoma.local || true
-        echo "✅ Airflow initialized"
+        echo "Airflow initialized"
     restart: "no"
 
-  # ── Airflow Webserver ─────────────────────────────────────────────────────
   airflow-webserver:
     <<: *airflow-common
-    command: airflow webserver
+    command: >
+      bash -c "
+        pip install --user pyyaml scikit-learn pillow pandas --quiet &&
+        airflow webserver
+      "
     ports:
       - "8080:8080"
     depends_on:
@@ -68,13 +72,17 @@ services:
       timeout: 10s
       retries: 5
 
-  # ── Airflow Scheduler ─────────────────────────────────────────────────────
   airflow-scheduler:
     <<: *airflow-common
-    command: airflow scheduler
+    command: >
+      bash -c "
+        pip install --user pyyaml scikit-learn pillow pandas --quiet &&
+        airflow scheduler
+      "
     depends_on:
       - airflow-init
     restart: unless-stopped
 
 volumes:
   airflow-db:
+  airflow-logs:
