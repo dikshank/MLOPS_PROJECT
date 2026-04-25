@@ -48,6 +48,9 @@ x-airflow-common: &airflow-common
     - airflow-db:/opt/airflow
     - airflow-logs:/opt/airflow/logs
 
+    # Mount project data folder so container can read/write data
+    - ../data:/opt/airflow/data
+
 services:
 
   # ── Airflow Init (runs once, sets up DB and creates admin user) ──────

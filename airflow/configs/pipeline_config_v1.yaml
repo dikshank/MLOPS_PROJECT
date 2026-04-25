@@ -8,16 +8,16 @@ version: "v1"
 paths:
   # Root folder where raw data is stored
   # Windows local path (update this to match your actual project location)
-  raw_data_dir: "C:/Users/YourUsername/mlops_project/data/raw/dataset1"
+  raw_data_dir: "/opt/airflow/data/raw/dataset1"
 
   # Output folders for processed data
-  processed_data_dir: "C:/Users/YourUsername/mlops_project/data/processed/v1"
+  processed_data_dir: "/opt/airflow/data/processed/v1"
 
   # Output path for baseline statistics JSON
-  baseline_stats_path: "C:/Users/YourUsername/mlops_project/data/baseline_stats/v1_stats.json"
+  baseline_stats_path: "/opt/airflow/data/baseline_stats/v1_stats.json"
 
   # Path to save the split manifest CSVs
-  split_manifest_dir: "C:/Users/YourUsername/mlops_project/data/processed/v1/manifests"
+  split_manifest_dir: "/opt/airflow/data/processed/v1/manifests"
 
 # Expected class folder names inside raw_data_dir
 # For presplit datasets: these must exist inside both train/ and test/ subfolders
