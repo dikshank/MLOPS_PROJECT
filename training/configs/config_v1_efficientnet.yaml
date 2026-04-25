@@ -20,25 +20,25 @@ model:
 
 data:
   version: "v1"
-  manifest_dir: "C:/Users/YourUsername/mlops_project/data/processed/v1/manifests"
-  baseline_stats_path: "C:/Users/YourUsername/mlops_project/data/baseline_stats/v1_stats.json"
+  manifest_dir: "data/processed/v1/manifests"
+  baseline_stats_path: "data/baseline_stats/v1_stats.json"
 
 training:
   epochs: 10
   batch_size: 16
-  lr_head: 1e-3
-  lr_finetune: 1e-4
-  weight_decay: 1e-4
+  lr_head: 0.001
+  lr_finetune: 0.0001
+  weight_decay: 0.0001
   class_weights: [1.0, 2.0]
   early_stopping_patience: 3
 
 output:
-  model_dir: "C:/Users/YourUsername/mlops_project/training/models/v1"
-  artifacts_dir: "C:/Users/YourUsername/mlops_project/training/artifacts/v1_efficientnet"
+  model_dir: "training/models/v1"
+  artifacts_dir: "training/artifacts/v1_efficientnet"
 
 # ── Debug mode ────────────────────────────────────────────────────────────────
 debug:
-  enabled: false
+  enabled: true
   num_images: 20
   epochs: 2
   batch_size: 4
