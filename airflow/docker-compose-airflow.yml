@@ -48,9 +48,6 @@ x-airflow-common: &airflow-common
     - airflow-db:/opt/airflow
     - airflow-logs:/opt/airflow/logs
 
-  # Windows 11: run as default user (avoids Linux UID permission issues)
-  user: "0:0"
-
 services:
 
   # ── Airflow Init (runs once, sets up DB and creates admin user) ──────
@@ -60,7 +57,7 @@ services:
     command:
       - -c
       - |
-        pip install pyyaml scikit-learn pillow pandas --quiet
+        pip install --user pyyaml scikit-learn pillow pandas --quiet
         airflow db init
         airflow users create \
           --username admin \
@@ -77,7 +74,7 @@ services:
     <<: *airflow-common
     command: >
       bash -c "
-        pip install pyyaml scikit-learn pillow pandas --quiet &&
+        pip install --user pyyaml scikit-learn pillow pandas --quiet &&
         airflow webserver
       "
     ports:
@@ -96,7 +93,7 @@ services:
     <<: *airflow-common
     command: >
       bash -c "
-        pip install pyyaml scikit-learn pillow pandas --quiet &&
+        pip install --user pyyaml scikit-learn pillow pandas --quiet &&
         airflow scheduler
       "
     depends_on:
