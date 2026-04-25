@@ -1,0 +1,69 @@
+# ============================================================
+# .gitignore — Melanoma MLOps Project
+# ============================================================
+
+# ── Python ─────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# ── Virtual environments ────────────────────────────────────
+venv/
+.venv/
+env/
+.env/
+
+# ── Environment variables (secrets) ────────────────────────
+.env
+*.env.local
+
+# ── Data (tracked by DVC, not Git) ─────────────────────────
+data/raw/
+data/processed/
+data/baseline_stats/
+data/validate_done.flag
+
+# ── Model checkpoints (tracked by DVC, not Git) ────────────
+training/models/
+training/artifacts/
+
+# ── MLflow runs (local, not pushed to Git) ─────────────────
+mlruns/
+
+# ── Logs ───────────────────────────────────────────────────
+logs/
+*.log
+
+# ── Jupyter notebooks checkpoints ──────────────────────────
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ── OS files ───────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDE ────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Docker ─────────────────────────────────────────────────
+docker-data/
+
+# ── pytest ─────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── DVC internal (keep .dvc files, ignore cache) ───────────
+.dvc/cache/
+.dvc/tmp/
