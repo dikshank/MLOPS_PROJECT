@@ -2,13 +2,8 @@
 # docker-compose-airflow.yml
 # Phase 1 & 2 | Executed: Local (Windows 11)
 #
-# Spins up Apache Airflow (standalone mode) locally.
-# Mounts your local project scripts, dags, and configs
-# into the container so you can edit in VSCode and
-# Airflow picks up changes immediately.
-#
 # Usage:
-#   docker-compose -f airflow/docker-compose-airflow.yml up
+#   docker-compose -f airflow/docker-compose-airflow.yml up --build
 #   Open: http://localhost:8080
 #   Default login: admin / admin
 # ============================================================
@@ -16,51 +11,37 @@
 version: "3.8"
 
 x-airflow-common: &airflow-common
-  image: apache/airflow:2.8.1-python3.10
+  build:
+    context: .
+    dockerfile: Dockerfile
   environment:
-    # ── Core Airflow settings ──────────────────────────────────────────
     AIRFLOW__CORE__EXECUTOR: SequentialExecutor
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
     AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
-
-    # ── Database (SQLite for local dev, no extra container needed) ─────
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/airflow.db
-
-    # ── Webserver ──────────────────────────────────────────────────────
     AIRFLOW__WEBSERVER__SECRET_KEY: "melanoma_mlops_secret_key_change_in_prod"
     AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
-
-    # ── Python path so scripts can import each other ───────────────────
     PYTHONPATH: /opt/airflow/scripts
 
   volumes:
-    # Mount your local dags folder → container dags folder
     - ./dags:/opt/airflow/dags
-
-    # Mount your local scripts folder → container scripts folder
     - ./scripts:/opt/airflow/scripts
-
-    # Mount your local configs folder → container configs folder
     - ./configs:/opt/airflow/configs
-
-    # Persist Airflow DB and logs between restarts
     - airflow-db:/opt/airflow
-    - airflow-logs:/opt/airflow/logs
-
-    # Mount project data folder so container can read/write data
     - ../data:/opt/airflow/data
+    - ../logs:/opt/airflow/logs
+    - ../training:/opt/airflow/training
 
 services:
 
-  # ── Airflow Init (runs once, sets up DB and creates admin user) ──────
+  # ── Airflow Init ─────────────────────────────────────────────────────────
   airflow-init:
     <<: *airflow-common
     entrypoint: /bin/bash
     command:
       - -c
       - |
-        pip install --user pyyaml scikit-learn pillow pandas --quiet
         airflow db init
         airflow users create \
           --username admin \
@@ -72,14 +53,10 @@ services:
         echo "✅ Airflow initialized"
     restart: "no"
 
-  # ── Airflow Webserver (UI at localhost:8080) ─────────────────────────
+  # ── Airflow Webserver ─────────────────────────────────────────────────────
   airflow-webserver:
     <<: *airflow-common
-    command: >
-      bash -c "
-        pip install --user pyyaml scikit-learn pillow pandas --quiet &&
-        airflow webserver
-      "
+    command: airflow webserver
     ports:
       - "8080:8080"
     depends_on:
@@ -91,18 +68,13 @@ services:
       timeout: 10s
       retries: 5
 
-  # ── Airflow Scheduler (executes DAG tasks) ───────────────────────────
+  # ── Airflow Scheduler ─────────────────────────────────────────────────────
   airflow-scheduler:
     <<: *airflow-common
-    command: >
-      bash -c "
-        pip install --user pyyaml scikit-learn pillow pandas --quiet &&
-        airflow scheduler
-      "
+    command: airflow scheduler
     depends_on:
       - airflow-init
     restart: unless-stopped
 
 volumes:
   airflow-db:
-  airflow-logs:
