@@ -111,7 +111,7 @@ async function runPrediction(file) {
         }
 
         const data = await response.json();
-        currentPrediction = { ...data, image_id: file.name };
+        currentPrediction = { ...data };  // image_id comes from server response
         displayResult(data);
 
     } catch (err) {
