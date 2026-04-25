@@ -9,7 +9,7 @@ Defines the API contract — matches exactly what is specified in LLD.md.
 All endpoints use these schemas for input validation and response formatting.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 
 
@@ -18,12 +18,16 @@ class PredictResponse(BaseModel):
     Response schema for POST /predict endpoint.
 
     Attributes:
+        image_id      : Unique ID for this prediction — pass to /feedback
         label         : Predicted class — 'malignant' or 'benign'
         confidence    : Model confidence for the predicted class (0.0 to 1.0)
         malignant_prob: Raw probability of malignant class (0.0 to 1.0)
         threshold_used: Classification threshold applied to malignant_prob
         recommendation: Human-readable advice for non-technical users
     """
+    model_config = ConfigDict(protected_namespaces=())
+
+    image_id: str = Field(..., example="img_a1b2c3d4_1714000000.jpg")
     label: str = Field(..., example="malignant")
     confidence: float = Field(..., ge=0.0, le=1.0, example=0.87)
     malignant_prob: float = Field(..., ge=0.0, le=1.0, example=0.87)
@@ -54,6 +58,8 @@ class ReadyResponse(BaseModel):
         model_version : MLflow registry version of the loaded model
         status        : 'ready' if model is loaded, 'not_ready' otherwise
     """
+    model_config = ConfigDict(protected_namespaces=())
+
     model_loaded: bool = Field(..., example=True)
     model_name: Optional[str] = Field(None, example="mobilenet_v3_small")
     model_version: Optional[str] = Field(None, example="3")
@@ -65,14 +71,15 @@ class FeedbackRequest(BaseModel):
     Request schema for POST /feedback endpoint.
 
     Used to log ground truth labels for previous predictions.
-    Enables real-world recall tracking and drift detection.
+    The image_id returned by /predict is used to retrieve
+    the saved image for retraining.
 
     Attributes:
-        image_id      : Identifier of the image (filename or hash)
+        image_id       : ID returned by /predict endpoint
         predicted_label: What the model predicted
-        true_label    : Actual ground truth label from a doctor
+        true_label     : Actual ground truth label confirmed by doctor
     """
-    image_id: str = Field(..., example="img_20240101_001.jpg")
+    image_id: str = Field(..., example="img_a1b2c3d4_1714000000.jpg")
     predicted_label: str = Field(..., example="malignant")
     true_label: str = Field(..., example="malignant")
 
@@ -82,8 +89,8 @@ class FeedbackResponse(BaseModel):
     Response schema for POST /feedback endpoint.
 
     Attributes:
-        received      : Whether feedback was successfully recorded
-        message       : Confirmation message
+        received: Whether feedback was successfully recorded
+        message : Confirmation message
     """
     received: bool = Field(..., example=True)
     message: str = Field(..., example="Feedback recorded. Thank you.")
