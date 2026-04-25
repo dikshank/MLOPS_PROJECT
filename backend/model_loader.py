@@ -70,35 +70,78 @@ def _get_production_version() -> tuple:
 
 def _find_model_path(run_id: str, mlruns_path: str) -> str:
     """
-    Find the pytorch_model directory directly in mlruns/ folder.
+    Find the pytorch model directory directly in mlruns/ folder.
 
-    This bypasses the Windows absolute path stored in MLflow artifacts
-    by searching the mlruns/ folder directly using the run_id.
+    Searches multiple possible locations because MLflow versions differ
+    in where they store model artifacts:
+
+    Location 1 (older MLflow):
+        mlruns/<exp_id>/<run_id>/artifacts/pytorch_model
+
+    Location 2 (newer MLflow 2.x):
+        mlruns/<exp_id>/models/<model_hash>/artifacts/
 
     Args:
         run_id (str): MLflow run ID.
         mlruns_path (str): Path to mlruns/ folder inside container.
 
     Returns:
-        str: Path to the pytorch_model directory.
+        str: Path to the model directory containing MLmodel file.
 
     Raises:
         FileNotFoundError: If model directory cannot be found.
     """
-    # mlruns structure: mlruns/<experiment_id>/<run_id>/artifacts/pytorch_model
-    pattern = str(Path(mlruns_path) / "*" / run_id / "artifacts" / "pytorch_model")
-    matches = glob.glob(pattern)
+    mlruns = Path(mlruns_path)
 
-    if not matches:
-        raise FileNotFoundError(
-            f"Could not find pytorch_model for run_id={run_id} "
-            f"in mlruns path={mlruns_path}. "
-            f"Searched pattern: {pattern}"
-        )
+    # ── Location 1: classic run artifacts ────────────────────────────────
+    pattern1 = str(mlruns / "*" / run_id / "artifacts" / "pytorch_model")
+    matches1 = glob.glob(pattern1)
+    if matches1:
+        logger.info("Found model (location 1): %s", matches1[0])
+        return matches1[0]
 
-    model_path = matches[0]
-    logger.info("Found model at: %s", model_path)
-    return model_path
+    # ── Location 2: newer MLflow models/ folder ───────────────────────────
+    # mlruns/<exp_id>/models/<model_hash>/artifacts/
+    # Find by looking for MLmodel files and matching run_id in meta.yaml
+    pattern2 = str(mlruns / "*" / "models" / "*" / "artifacts")
+    matches2 = glob.glob(pattern2)
+
+    for candidate in matches2:
+        # Check meta.yaml in parent to confirm this is the right run
+        meta_path = Path(candidate).parent / "meta.yaml"
+        if meta_path.exists():
+            try:
+                with open(meta_path) as f:
+                    content = f.read()
+                if run_id in content:
+                    # Verify MLmodel file exists (confirms it's a valid model)
+                    mlmodel_path = Path(candidate) / "MLmodel"
+                    if mlmodel_path.exists():
+                        logger.info("Found model (location 2): %s", candidate)
+                        return candidate
+            except Exception:
+                continue
+
+    # ── Location 3: search all MLmodel files as last resort ───────────────
+    pattern3 = str(mlruns / "**" / "MLmodel")
+    all_mlmodels = glob.glob(pattern3, recursive=True)
+
+    for mlmodel_file in all_mlmodels:
+        try:
+            with open(mlmodel_file) as f:
+                content = f.read()
+            if run_id in content:
+                model_dir = str(Path(mlmodel_file).parent)
+                logger.info("Found model (location 3): %s", model_dir)
+                return model_dir
+        except Exception:
+            continue
+
+    raise FileNotFoundError(
+        f"Could not find model for run_id={run_id} "
+        f"in mlruns path={mlruns_path}. "
+        f"Searched 3 locations. Check that mlruns/ is mounted correctly."
+    )
 
 
 def _get_threshold_from_run(run_id: str) -> float:
