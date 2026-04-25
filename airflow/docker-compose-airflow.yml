@@ -19,7 +19,7 @@ x-airflow-common: &airflow-common
   image: apache/airflow:2.8.1-python3.10
   environment:
     # ── Core Airflow settings ──────────────────────────────────────────
-    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__EXECUTOR: SequentialExecutor
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
     AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
