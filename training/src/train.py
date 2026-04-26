@@ -325,6 +325,7 @@ def run_training(config: dict) -> None:
 
             # ── Save best model ───────────────────────────────────────────
             if val_metrics["recall"] > best_val_recall:
+                # Stage 1: recall improved — always save
                 best_val_recall = val_metrics["recall"]
                 best_val_f1     = val_metrics["f1"]
                 best_threshold  = val_threshold
@@ -332,6 +333,16 @@ def run_training(config: dict) -> None:
                 patience_counter = 0
                 logger.info(
                     "✔ New best model saved | val_recall=%.4f", best_val_recall
+                )
+            elif val_metrics["recall"] == best_val_recall and val_metrics["f1"] > best_val_f1:
+                # Stage 2: recall tied but F1 improved — save better balanced model
+                best_val_f1    = val_metrics["f1"]
+                best_threshold = val_threshold
+                torch.save(model.state_dict(), checkpoint_path)
+                patience_counter = 0
+                logger.info(
+                    "✔ New best model saved | val_recall=%.4f | val_f1=%.4f (F1 improved)",
+                    best_val_recall, best_val_f1
                 )
             else:
                 patience_counter += 1
