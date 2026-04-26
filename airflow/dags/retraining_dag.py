@@ -44,11 +44,17 @@ logger = logging.getLogger("retraining_dag")
 
 # ── Paths (inside Docker container) ──────────────────────────────────────────
 # These match the volumes mounted in docker-compose.yml
-RETRAIN_FLAG_PATH   = Path("/opt/airflow/logs/retrain_needed.flag")
-FEEDBACK_DATA_DIR   = Path("/opt/airflow/logs/feedback_data")
+RETRAIN_FLAG_PATH   = Path("/opt/airflow/app_logs/retrain_needed.flag")
+FEEDBACK_DATA_DIR   = Path("/opt/airflow/app_logs/feedback_data")
 PROCESSED_DATA_DIR  = Path("/opt/airflow/data/processed/v1")
 TRAINING_SCRIPT     = Path("/opt/airflow/training/src/train.py")
-MOBILENET_CONFIG    = Path("/opt/airflow/training/configs/config_v1_mobilenet.yaml")
+
+# All 3 model configs — retraining runs all models, champion/challenger picks best
+TRAINING_CONFIGS = [
+    Path("/opt/airflow/training/configs/config_v1_mobilenet.yaml"),
+    Path("/opt/airflow/training/configs/config_v1_efficientnet.yaml"),
+    Path("/opt/airflow/training/configs/config_v1_simplecnn.yaml"),
+]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -187,28 +193,29 @@ def trigger_training(**context) -> None:
             f"Training script not found: {TRAINING_SCRIPT}"
         )
 
-    if not MOBILENET_CONFIG.exists():
-        raise FileNotFoundError(
-            f"Training config not found: {MOBILENET_CONFIG}"
+    for config in TRAINING_CONFIGS:
+        if not config.exists():
+            raise FileNotFoundError(
+                f"Training config not found: {config}"
+            )
+
+        logger.info(
+            "Starting retraining | script=%s | config=%s",
+            TRAINING_SCRIPT, config
         )
 
-    logger.info(
-        "Starting retraining | script=%s | config=%s",
-        TRAINING_SCRIPT, MOBILENET_CONFIG
-    )
+        result = subprocess.run(
+            ["python", str(TRAINING_SCRIPT), "--config", str(config)],
+            capture_output=True,
+            text=True,
+            timeout=3600  # 1 hour max per model
+        )
 
-    result = subprocess.run(
-        ["python", str(TRAINING_SCRIPT), "--config", str(MOBILENET_CONFIG)],
-        capture_output=True,
-        text=True,
-        timeout=3600  # 1 hour max
-    )
+        if result.returncode != 0:
+            logger.error("Training failed for %s:\n%s", config.name, result.stderr)
+            raise RuntimeError(f"Training script failed for {config.name}: {result.stderr[-500:]}")
 
-    if result.returncode != 0:
-        logger.error("Training failed:\n%s", result.stderr)
-        raise RuntimeError(f"Training script failed: {result.stderr[-500:]}")
-
-    logger.info("✅ Training complete:\n%s", result.stdout[-1000:])
+        logger.info("✅ Training complete for %s:\n%s", config.name, result.stdout[-500:])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
