@@ -22,6 +22,9 @@ x-airflow-common: &airflow-common
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/airflow.db
     AIRFLOW__WEBSERVER__SECRET_KEY: "melanoma_mlops_secret_key_change_in_prod"
     AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+    AIRFLOW__METRICS__STATSD_ON: "false"
+    AIRFLOW__METRICS__PROMETHEUS_ON: "true"
+    AIRFLOW__METRICS__PROMETHEUS_PORT: 8793
     PYTHONPATH: /opt/airflow/scripts
 
   volumes:
@@ -63,6 +66,7 @@ services:
       "
     ports:
       - "8080:8080"
+      - "8793:8793"
     depends_on:
       - airflow-init
     restart: unless-stopped
@@ -86,3 +90,9 @@ services:
 volumes:
   airflow-db:
   airflow-logs:
+
+networks:
+  default:
+    external: true
+    name: mlops_network
+

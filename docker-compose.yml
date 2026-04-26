@@ -10,11 +10,10 @@
 #   grafana    → NRT dashboard                      (port 3000)
 #
 # Usage:
+#   docker network create mlops_network
 #   docker-compose up --build
 #   docker-compose down
 # ============================================================
-
-version: "3.8"
 
 services:
 
@@ -39,14 +38,13 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # Path to local MLflow tracking URI inside container
-      # mlruns/ is mounted as a volume so backend always sees latest model
       MLFLOW_TRACKING_URI: /mlruns
+      MLFLOW_ARTIFACT_ROOT: /mlruns
+      BASELINE_STATS_PATH: /app/data/baseline_stats/v1_stats.json
     volumes:
-      # Mount mlruns/ so backend can load Production model from registry
       - ./mlruns:/mlruns
-      # Mount logs/ for persistent log files
       - ./logs:/app/logs
+      - ./data:/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -56,12 +54,11 @@ services:
 
   # ── MLflow UI: visualize experiments and model registry ─────────────────
   mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.12.1
+    image: ghcr.io/mlflow/mlflow:v3.1.1
     container_name: melanoma_mlflow
     ports:
       - "5000:5000"
     volumes:
-      # Mount mlruns/ so MLflow UI shows all experiments and registry
       - ./mlruns:/mlruns
     command: >
       mlflow ui
@@ -84,7 +81,6 @@ services:
       - "--storage.tsdb.path=/prometheus"
       - "--web.enable-lifecycle"
     extra_hosts:
-      # Allows Prometheus to scrape Airflow on host machine (localhost:8080)
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
@@ -108,3 +104,8 @@ services:
 volumes:
   prometheus_data:
   grafana_data:
+
+networks:
+  default:
+    external: true
+    name: mlops_network

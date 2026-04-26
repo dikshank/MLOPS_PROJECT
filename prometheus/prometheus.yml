@@ -24,7 +24,7 @@ scrape_configs:
   # Requires AIRFLOW__METRICS__STATSD_ON=false and metrics enabled in config
   - job_name: "airflow"
     static_configs:
-      - targets: ["host.docker.internal:8080"]
+      - targets: ["airflow-webserver:8080"]
     metrics_path: /admin/metrics
 
   # ── Prometheus self-monitoring ──────────────────────────────────────────
