@@ -12,7 +12,7 @@ mlflow:
 
 model:
   name: "simple_cnn"
-  img_size: 32
+  img_size: 64
 
   # Not applicable for simple_cnn (no pretrained weights)
   # Kept for config consistency

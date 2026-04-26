@@ -11,7 +11,7 @@ mlflow:
 
 model:
   name: "efficientnet_b0"
-  img_size: 32                  # native low-res size, no upscaling
+  img_size: 64                  # native low-res size, no upscaling
 
   # Freeze strategy
   freeze_base: true

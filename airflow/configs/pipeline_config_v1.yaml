@@ -36,7 +36,7 @@ valid_extensions:
 preprocessing:
   # Target image size - keeping native 32x32, no upscaling
   # Upscaling adds no real information and weakens the baseline failure argument
-  target_size: [32, 32]
+  target_size: [64, 64]
 
   # Whether to convert all images to RGB (handles grayscale edge cases)
   convert_to_rgb: true
