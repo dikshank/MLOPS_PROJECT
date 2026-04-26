@@ -264,6 +264,45 @@ def get_current_production_recall() -> float:
         return 0.0
 
 
+def get_current_production_f1() -> float:
+    """
+    Get the val_f1 of the current Production model from MLflow registry.
+
+    Returns:
+        float: val_f1 of current Production model, or 0.0 if none exists.
+    """
+    client = mlflow.tracking.MlflowClient()
+
+    try:
+        production_versions = client.get_latest_versions(
+            name="melanoma_classifier",
+            stages=["Production"]
+        )
+
+        if not production_versions:
+            return 0.0
+
+        production_run_id = production_versions[0].run_id
+        f1_history = client.get_metric_history(production_run_id, "val_f1")
+
+        if not f1_history:
+            logger.warning("Production model run has no val_f1 metric. Returning 0.0")
+            return 0.0
+
+        best_f1 = max(m.value for m in f1_history)
+        logger.info(
+            "Current Production model val_f1: %.4f (run_id: %s)",
+            best_f1, production_run_id
+        )
+        return best_f1
+
+    except Exception as e:
+        logger.warning(
+            "Could not fetch Production model f1: %s. Treating as 0.0", str(e)
+        )
+        return 0.0
+
+
 def promote_to_production(model_version: int) -> None:
     """
     Promote a registered model version to Production stage.
@@ -308,25 +347,36 @@ def log_model(
     model,
     model_name: str,
     best_checkpoint_path: Path,
-    new_val_recall: float
+    new_val_recall: float,
+    new_val_f1: float = 0.0
 ) -> None:
     """
     Log model to MLflow registry and auto-promote to Production
     if it outperforms the current Production model (Champion/Challenger pattern).
 
-    Logic:
-        1. Log .pth as artifact in current run
-        2. Register model in MLflow registry as new version (Challenger)
-        3. Compare new model's val_recall vs current Production (Champion)
-        4. If new > current → promote new to Production, archive old
-        5. If not → leave new as Challenger, keep current Production
+    Two-stage comparison logic:
+        Stage 1 — Recall comparison (primary metric, patient safety):
+            If new_recall > current_recall + RECALL_TOLERANCE → promote
+            If new_recall < current_recall - RECALL_TOLERANCE → keep current
+
+        Stage 2 — F1 tiebreaker (when recall is tied within tolerance):
+            If recalls are tied (within ±RECALL_TOLERANCE):
+                If new_f1 > current_f1 → promote (better balance)
+                Else → keep current (stability wins)
+
+        This ensures:
+            - Recall is always the primary safety metric
+            - When models are equally safe, we pick the more precise one
+            - Avoids promoting a model that flags everything as malignant
 
     Args:
         model: Trained PyTorch model.
         model_name (str): Architecture name.
         best_checkpoint_path (Path): Path to saved .pth checkpoint.
         new_val_recall (float): Best val_recall achieved in this training run.
+        new_val_f1 (float): Best val_f1 achieved in this training run.
     """
+    RECALL_TOLERANCE = 0.02   # recalls within 2% are considered tied
     # ── Log raw .pth as artifact in this run ──────────────────────────────
     mlflow.log_artifact(str(best_checkpoint_path), artifact_path="model")
     logger.info(".pth checkpoint logged as artifact")
@@ -356,26 +406,60 @@ def log_model(
 
     # ── Champion / Challenger comparison ─────────────────────────────────
     current_production_recall = get_current_production_recall()
+    current_production_f1     = get_current_production_f1()
 
-    if new_val_recall > current_production_recall:
+    recall_diff = new_val_recall - current_production_recall
+
+    if recall_diff > RECALL_TOLERANCE:
+        # Stage 1: New model has strictly better recall → promote
         logger.info(
-            "New model (%.4f) outperforms current Production (%.4f). "
+            "Stage 1 PROMOTE: new recall (%.4f) > current (%.4f) by %.4f. "
             "Promoting to Production.",
-            new_val_recall, current_production_recall
+            new_val_recall, current_production_recall, recall_diff
         )
         promote_to_production(new_version)
-        mlflow.set_tag("promotion_result", "promoted_to_production")
+        mlflow.set_tag("promotion_result", "promoted_recall_improvement")
 
-    else:
+    elif recall_diff < -RECALL_TOLERANCE:
+        # Stage 1: New model has worse recall → keep current
         logger.info(
-            "New model (%.4f) does NOT outperform current Production (%.4f). "
-            "Keeping as Challenger.",
+            "Stage 1 KEEP: new recall (%.4f) < current (%.4f). "
+            "Keeping current Production.",
             new_val_recall, current_production_recall
         )
-        # Leave in "None" stage as Challenger — visible in registry but not served
         client.transition_model_version_stage(
             name="melanoma_classifier",
             version=new_version,
             stage="Staging"
         )
-        mlflow.set_tag("promotion_result", "kept_as_challenger")
+        mlflow.set_tag("promotion_result", "kept_recall_worse")
+
+    else:
+        # Stage 2: Recalls are tied — use F1 as tiebreaker
+        logger.info(
+            "Stage 2 (F1 tiebreaker): recalls tied (new=%.4f, current=%.4f). "
+            "Comparing F1: new=%.4f vs current=%.4f.",
+            new_val_recall, current_production_recall,
+            new_val_f1, current_production_f1
+        )
+
+        if new_val_f1 > current_production_f1:
+            logger.info(
+                "Stage 2 PROMOTE: new F1 (%.4f) > current F1 (%.4f). "
+                "Promoting to Production.",
+                new_val_f1, current_production_f1
+            )
+            promote_to_production(new_version)
+            mlflow.set_tag("promotion_result", "promoted_f1_tiebreaker")
+        else:
+            logger.info(
+                "Stage 2 KEEP: new F1 (%.4f) <= current F1 (%.4f). "
+                "Keeping current Production (stability wins).",
+                new_val_f1, current_production_f1
+            )
+            client.transition_model_version_stage(
+                name="melanoma_classifier",
+                version=new_version,
+                stage="Staging"
+            )
+            mlflow.set_tag("promotion_result", "kept_f1_not_better")

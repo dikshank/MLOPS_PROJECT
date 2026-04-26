@@ -256,6 +256,7 @@ def run_training(config: dict) -> None:
 
         # ── Training loop ─────────────────────────────────────────────────
         best_val_recall   = 0.0
+        best_val_f1       = 0.0
         best_threshold    = 0.5
         patience_counter  = 0
         patience          = config["training"]["early_stopping_patience"]
@@ -325,6 +326,7 @@ def run_training(config: dict) -> None:
             # ── Save best model ───────────────────────────────────────────
             if val_metrics["recall"] > best_val_recall:
                 best_val_recall = val_metrics["recall"]
+                best_val_f1     = val_metrics["f1"]
                 best_threshold  = val_threshold
                 torch.save(model.state_dict(), checkpoint_path)
                 patience_counter = 0
@@ -391,7 +393,8 @@ def run_training(config: dict) -> None:
             model=model,
             model_name=config["model"]["name"],
             best_checkpoint_path=checkpoint_path,
-            new_val_recall=best_val_recall
+            new_val_recall=best_val_recall,
+            new_val_f1=best_val_f1
         )
 
         logger.info("✅ Training complete. MLflow run finished.")
