@@ -2,13 +2,24 @@
 # MLproject
 # MLflow Projects file for reproducible training runs.
 #
+# Reproducibility guarantee:
+#   Every experiment is reproducible via:
+#     1. Git commit hash  → exact code state
+#     2. MLflow run ID    → exact parameters, metrics, artifacts
+#     3. DVC data hash    → exact dataset version
+#
 # Usage:
 #   mlflow run . -P config=training/configs/config_v1_mobilenet.yaml
-#   mlflow run . -P config=training/configs/config_v2_mobilenet.yaml
+#   mlflow run . -P config=training/configs/config_v1_efficientnet.yaml
 #
-# Ensures identical environment across dev and test runs.
-# Every training run is reproducible via:
-#   git commit hash + mlflow run ID
+# To reproduce a specific run:
+#   git checkout <commit_hash>
+#   dvc checkout
+#   mlflow run . -P config=<config_path>
+#
+# Environment:
+#   Uses python_env.yaml to ensure identical dependencies
+#   across all runs (dev, test, production)
 # ============================================================
 
 name: melanoma_mlops
@@ -17,18 +28,35 @@ python_env: python_env.yaml
 
 entry_points:
 
-  # ── Main training entry point ────────────────────────────────────────
+  # ── MobileNetV3-Small baseline training ──────────────────────────────
+  # Phase 1: Prove low-res (32x32) baseline fails (val_recall < 0.6)
+  # Phase 2: Train on high-res (64x64) to prove improvement
   main:
     parameters:
       config:
         type: str
         default: training/configs/config_v1_mobilenet.yaml
+        description: "Path to training config YAML (relative to project root)"
     command: "python training/src/train.py --config {config}"
 
-  # ── EfficientNet baseline ────────────────────────────────────────────
+  # ── EfficientNet-B0 baseline training ────────────────────────────────
+  # Challenger model — auto-promoted to Production only if
+  # val_recall exceeds current Production model (champion/challenger)
   train_efficientnet:
     parameters:
       config:
         type: str
         default: training/configs/config_v1_efficientnet.yaml
+        description: "Path to EfficientNet training config YAML"
+    command: "python training/src/train.py --config {config}"
+
+  # ── Debug run (quick pipeline verification) ──────────────────────────
+  # Runs 2 epochs on 20 images to verify end-to-end pipeline
+  # Set debug.enabled: true in config before using this entry point
+  debug:
+    parameters:
+      config:
+        type: str
+        default: training/configs/config_v1_mobilenet.yaml
+        description: "Config with debug.enabled: true"
     command: "python training/src/train.py --config {config}"

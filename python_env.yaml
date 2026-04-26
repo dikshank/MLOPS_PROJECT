@@ -1,20 +1,39 @@
 # ============================================================
 # python_env.yaml
 # Python environment specification for MLflow Projects.
+#
 # Ensures identical environment for every training run.
+# Used by MLproject to guarantee reproducibility.
+#
+# Actual versions verified on: Windows 11, Python 3.14.3
+# Hardware: Intel UHD 620 (CPU only, no CUDA)
 # ============================================================
 
-python: "3.10"
+python: "3.14"
 
 build_dependencies:
   - pip
 
 dependencies:
-  - torch==2.2.2
-  - torchvision==0.17.2
-  - mlflow==2.12.1
-  - pillow==10.3.0
-  - pandas==2.2.2
-  - scikit-learn==1.4.2
-  - pyyaml==6.0.1
-  - tqdm==4.66.2
+  # ── Core ML ──────────────────────────────────────────────────────────
+  - torch==2.11.0
+  - torchvision==0.26.0
+
+  # ── Experiment tracking ───────────────────────────────────────────────
+  - mlflow==3.11.1
+
+  # ── Data processing ───────────────────────────────────────────────────
+  - pillow==12.2.0
+  - pandas==2.3.3
+  - numpy
+  - scikit-learn==1.8.0
+
+  # ── Config and utilities ──────────────────────────────────────────────
+  - pyyaml==6.0.3
+
+  # ── Serving dependencies (for local testing outside Docker) ───────────
+  - fastapi==0.135.3
+  - uvicorn
+  - prometheus-client
+  - python-multipart
+  - httpx
