@@ -61,7 +61,7 @@ class TestPredictHappyPath:
         data = response.json()
 
         required_fields = {
-            "label", "confidence", "malignant_prob",
+            "image_id", "label", "confidence", "malignant_prob",
             "threshold_used", "recommendation"
         }
         for field in required_fields:
