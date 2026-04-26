@@ -94,11 +94,13 @@ BASELINE_STATS_PATH  = Path(
     os.environ.get("BASELINE_STATS_PATH", "data/baseline_stats/v1_stats.json")
 )
 
-# Create all required directories
+# Create all required directories with open permissions
+# so Airflow container can read/delete files written by backend container
 for d in [LOGS_DIR, PENDING_FEEDBACK_DIR,
           FEEDBACK_DATA_DIR / "malignant",
           FEEDBACK_DATA_DIR / "benign"]:
     d.mkdir(parents=True, exist_ok=True)
+    os.chmod(d, 0o777)
 
 # ── In-memory state ───────────────────────────────────────────────────────────
 _feedback_counts = {"tp": 0, "fp": 0, "fn": 0, "tn": 0}
@@ -283,6 +285,7 @@ async def predict_endpoint(file: UploadFile = File(...)):
         pending_path = PENDING_FEEDBACK_DIR / image_id
         with open(pending_path, "wb") as f:
             f.write(image_bytes)
+        os.chmod(pending_path, 0o777)  # allow Airflow container to delete
 
         # ── Run inference ─────────────────────────────────────────────────
         meta   = get_model_meta()
@@ -425,6 +428,7 @@ async def feedback(request: FeedbackRequest):
         if pending_path.exists():
             import shutil
             shutil.move(str(pending_path), str(feedback_path))
+            os.chmod(feedback_path, 0o777)  # allow Airflow container to delete
             logger.info(
                 "Image moved to feedback_data/%s/%s", actual, image_id
             )

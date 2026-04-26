@@ -263,9 +263,13 @@ def cleanup(**context) -> None:
         if class_dir.exists() and any(class_dir.iterdir()):
             dest = archive_dir / class_name
             shutil.copytree(str(class_dir), str(dest))
-            # Clear original
-            shutil.rmtree(str(class_dir))
-            class_dir.mkdir()
+            # Clear files inside directory but keep the directory itself
+            # (avoids cross-container permission issues with Docker volumes)
+            for f in class_dir.iterdir():
+                try:
+                    f.unlink()
+                except PermissionError:
+                    logger.warning("Could not delete %s — skipping", f)
             logger.info(
                 "Archived feedback_data/%s → %s", class_name, archive_dir
             )
