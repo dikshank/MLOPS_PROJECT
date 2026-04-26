@@ -293,7 +293,7 @@ with DAG(
     ),
     default_args=default_args,
     start_date=datetime(2024, 1, 1),
-    schedule_interval=None,   # manual trigger only
+    schedule_interval=timedelta(minutes=30),  # auto-check every 30 mins
     catchup=False,
     tags=["melanoma", "retraining", "mlops"]
 ) as dag:

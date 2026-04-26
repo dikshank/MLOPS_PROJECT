@@ -1,17 +1,21 @@
 {
-  "title": "Melanoma Detection — System Dashboard",
+  "title": "Melanoma Detection \u2014 System Dashboard",
   "uid": "melanoma-dashboard",
   "timezone": "browser",
   "schemaVersion": 36,
   "version": 1,
   "refresh": "15s",
   "panels": [
-
     {
       "id": 1,
       "title": "Request Rate (req/min)",
       "type": "timeseries",
-      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
       "targets": [
         {
           "expr": "rate(melanoma_request_total[1m]) * 60",
@@ -19,12 +23,16 @@
         }
       ]
     },
-
     {
       "id": 2,
       "title": "Average Prediction Latency (seconds)",
       "type": "timeseries",
-      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
       "targets": [
         {
           "expr": "rate(melanoma_request_latency_seconds_sum[1m]) / rate(melanoma_request_latency_seconds_count[1m])",
@@ -32,12 +40,16 @@
         }
       ]
     },
-
     {
       "id": 3,
-      "title": "Predictions — Malignant vs Benign",
+      "title": "Predictions \u2014 Malignant vs Benign",
       "type": "timeseries",
-      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
       "targets": [
         {
           "expr": "rate(melanoma_prediction_total[5m])",
@@ -45,12 +57,16 @@
         }
       ]
     },
-
     {
       "id": 4,
       "title": "Malignant Probability Distribution",
       "type": "timeseries",
-      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
       "targets": [
         {
           "expr": "rate(melanoma_malignant_probability_bucket[5m])",
@@ -58,12 +74,16 @@
         }
       ]
     },
-
     {
       "id": 5,
       "title": "Real-World Recall (from feedback)",
       "type": "gauge",
-      "gridPos": { "x": 0, "y": 16, "w": 8, "h": 8 },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 8,
+        "h": 8
+      },
       "targets": [
         {
           "expr": "melanoma_real_world_recall",
@@ -71,24 +91,41 @@
         }
       ],
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
         "minVehicle": 0,
         "maxVehicle": 1,
         "thresholds": {
           "steps": [
-            { "color": "red",    "value": 0   },
-            { "color": "orange", "value": 0.6 },
-            { "color": "green",  "value": 0.8 }
+            {
+              "color": "red",
+              "value": 0
+            },
+            {
+              "color": "orange",
+              "value": 0.6
+            },
+            {
+              "color": "green",
+              "value": 0.8
+            }
           ]
         }
       }
     },
-
     {
       "id": 6,
       "title": "Real-World Precision (from feedback)",
       "type": "gauge",
-      "gridPos": { "x": 8, "y": 16, "w": 8, "h": 8 },
+      "gridPos": {
+        "x": 8,
+        "y": 16,
+        "w": 8,
+        "h": 8
+      },
       "targets": [
         {
           "expr": "melanoma_real_world_precision",
@@ -96,22 +133,39 @@
         }
       ],
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
         "thresholds": {
           "steps": [
-            { "color": "red",    "value": 0   },
-            { "color": "orange", "value": 0.4 },
-            { "color": "green",  "value": 0.6 }
+            {
+              "color": "red",
+              "value": 0
+            },
+            {
+              "color": "orange",
+              "value": 0.4
+            },
+            {
+              "color": "green",
+              "value": 0.6
+            }
           ]
         }
       }
     },
-
     {
       "id": 7,
       "title": "Model Loaded",
       "type": "stat",
-      "gridPos": { "x": 16, "y": 16, "w": 8, "h": 8 },
+      "gridPos": {
+        "x": 16,
+        "y": 16,
+        "w": 8,
+        "h": 8
+      },
       "targets": [
         {
           "expr": "melanoma_model_loaded",
@@ -119,42 +173,258 @@
         }
       ],
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
         "colorMode": "background",
         "thresholds": {
           "steps": [
-            { "color": "red",   "value": 0 },
-            { "color": "green", "value": 1 }
+            {
+              "color": "red",
+              "value": 0
+            },
+            {
+              "color": "green",
+              "value": 1
+            }
           ]
         }
       }
     },
-
     {
       "id": 8,
       "title": "Error Rate",
       "type": "timeseries",
-      "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
       "targets": [
         {
           "expr": "rate(melanoma_error_total[5m])",
-          "legendFormat": "{{endpoint}} — {{error_type}}"
+          "legendFormat": "{{endpoint}} \u2014 {{error_type}}"
         }
       ]
     },
-
     {
       "id": 9,
       "title": "Feedback Submissions",
       "type": "timeseries",
-      "gridPos": { "x": 12, "y": 24, "w": 12, "h": 8 },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
       "targets": [
         {
           "expr": "rate(melanoma_feedback_total[5m])",
           "legendFormat": "predicted={{predicted}} actual={{actual}}"
         }
       ]
+    },
+    {
+      "id": 20,
+      "title": "Drift Score (vs Baseline)",
+      "type": "gauge",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 24
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 0.2
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "melanoma_drift_score",
+          "legendFormat": "Drift Score"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "title": "Drift Detected",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 6,
+        "y": 24
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "No Drift",
+                  "color": "green"
+                },
+                "1": {
+                  "text": "DRIFT!",
+                  "color": "red"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "melanoma_drift_detected",
+          "legendFormat": "Drift Detected"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "title": "Misclassification Rate",
+      "type": "gauge",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 10,
+        "y": 24
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "orientation": "auto",
+        "showThresholdMarkers": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.05
+              },
+              {
+                "color": "red",
+                "value": 0.1
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "melanoma_misclassification_rate",
+          "legendFormat": "Misclassification Rate"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "title": "Retraining Triggered",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 24
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "melanoma_retraining_triggered_total",
+          "legendFormat": "Retraining Triggered"
+        }
+      ]
     }
-
   ]
 }
