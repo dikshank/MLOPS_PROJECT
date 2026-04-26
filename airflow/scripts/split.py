@@ -1,153 +1,319 @@
 """
-validate.py
------------
+split.py
+--------
 Phase 1 & 2 | Executed: Local (inside Airflow Docker container)
 
-Airflow Task 1: Validate raw images before any processing.
+Airflow Task 2: Stratified dataset splitting.
 
 Handles two dataset structures automatically:
 
-Case 1 — Flat structure:
-    raw/v1/malignant/ and raw/v1/benign/ at root level
+Case 1 — Flat structure (no pre-existing split):
+    raw/v1/
+        malignant/
+        benign/
+    → Pipeline performs full stratified 70/15/15 split
+    → Creates train, val, test manifests
 
-Case 2 — Pre-split structure:
-    raw/v1/train/malignant/, raw/v1/train/benign/
-    raw/v1/test/malignant/,  raw/v1/test/benign/
+Case 2 — Pre-split structure (train/test already exist):
+    raw/v1/
+        train/
+            malignant/
+            benign/
+        test/
+            malignant/
+            benign/
+    → Pipeline only carves val out of train (stratified 85/15)
+    → Test set is used exactly as-is, untouched
+    → Creates train, val, test manifests
 
-Responsibilities:
-- Detect dataset structure (flat or presplit)
-- Check every file can be opened as a valid image
-- Check file extensions are in the allowed list
-- Check for zero-byte / corrupt files
-- Check minimum image count per class is met
-- Log counts of valid vs rejected images
-- Fail the task if corrupt percentage exceeds threshold
+Output (saved to split_manifest_dir):
+    train_manifest.csv   → columns: filepath, label
+    val_manifest.csv     → columns: filepath, label
+    test_manifest.csv    → columns: filepath, label
 """
 
 import logging
+import pandas as pd
 from pathlib import Path
-from PIL import Image
+from sklearn.model_selection import train_test_split
 
+# ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
-logger = logging.getLogger("validate")
+logger = logging.getLogger("split")
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Dataset structure detection
+# ─────────────────────────────────────────────────────────────────────────────
 
 def detect_structure(raw_data_dir: Path, classes: list) -> str:
+    """
+    Detect whether the dataset is flat or pre-split.
+
+    Args:
+        raw_data_dir (Path): Root folder of the raw dataset.
+        classes (list): Expected class names e.g. ['malignant', 'benign'].
+
+    Returns:
+        str: 'flat' if class folders are at root level,
+             'presplit' if train/ and test/ subfolders exist.
+
+    Raises:
+        ValueError: If neither structure is detected.
+    """
+    # Check for flat structure: raw_data_dir/malignant/, raw_data_dir/benign/
     flat_dirs = [raw_data_dir / c for c in classes]
     if all(d.exists() and d.is_dir() for d in flat_dirs):
-        logger.info("Detected structure: FLAT")
+        logger.info("Detected structure: FLAT (no pre-existing split)")
         return "flat"
 
+    # Check for pre-split structure: raw_data_dir/train/, raw_data_dir/test/
     presplit_dirs = [raw_data_dir / "train", raw_data_dir / "test"]
     if all(d.exists() and d.is_dir() for d in presplit_dirs):
-        logger.info("Detected structure: PRE-SPLIT")
+        logger.info("Detected structure: PRE-SPLIT (train/test folders exist)")
         return "presplit"
 
     raise ValueError(
-        f"Cannot detect dataset structure at: {raw_data_dir}. "
-        f"Expected flat (malignant/, benign/) or presplit (train/, test/) structure."
+        f"Cannot detect dataset structure at: {raw_data_dir}\n"
+        f"Expected either:\n"
+        f"  Flat: {raw_data_dir}/malignant/ and {raw_data_dir}/benign/\n"
+        f"  Pre-split: {raw_data_dir}/train/ and {raw_data_dir}/test/"
     )
 
 
-def get_class_dirs(raw_data_dir: Path, classes: list, structure: str) -> list:
-    dirs = []
-    if structure == "flat":
-        for class_name in classes:
-            dirs.append(("root", class_name, raw_data_dir / class_name))
-    else:
-        for split in ["train", "test"]:
-            for class_name in classes:
-                dirs.append((split, class_name, raw_data_dir / split / class_name))
-    return dirs
+# ─────────────────────────────────────────────────────────────────────────────
+# DataFrame builders
+# ─────────────────────────────────────────────────────────────────────────────
 
+def build_dataframe_from_folder(folder: Path, classes: list, valid_extensions: set) -> pd.DataFrame:
+    """
+    Build a flat DataFrame from a folder containing one subfolder per class.
 
-def validate_class_dir(
-    class_dir, class_name, split_name,
-    valid_extensions, min_images, max_corrupt_pct
-) -> dict:
-    if not class_dir.exists():
-        raise FileNotFoundError(f"Class folder not found: {class_dir}")
+    Args:
+        folder (Path): Folder containing class subfolders directly.
+        classes (list): Expected class names.
+        valid_extensions (set): Allowed file extensions.
 
-    all_files = list(class_dir.iterdir())
-    total = len(all_files)
-    valid_count = 0
-    corrupt_files = []
+    Returns:
+        pd.DataFrame: DataFrame with columns [filepath, label].
+    """
+    records = []
 
-    for file_path in all_files:
-        if file_path.suffix.lower() not in valid_extensions:
-            corrupt_files.append(str(file_path))
+    for class_name in classes:
+        class_dir = folder / class_name
+
+        if not class_dir.exists():
+            logger.warning("Class folder not found: %s — skipping", class_dir)
             continue
-        if file_path.stat().st_size == 0:
-            logger.warning("Zero-byte file: %s", file_path.name)
-            corrupt_files.append(str(file_path))
-            continue
-        try:
-            with Image.open(file_path) as img:
-                img.verify()
-            valid_count += 1
-        except Exception as e:
-            logger.warning("Corrupt image [%s]: %s", file_path.name, str(e))
-            corrupt_files.append(str(file_path))
 
-    corrupt_count = len(corrupt_files)
-    corrupt_pct = corrupt_count / total if total > 0 else 1.0
+        for file_path in class_dir.iterdir():
+            if file_path.suffix.lower() not in valid_extensions:
+                continue
+            if file_path.stat().st_size == 0:
+                continue
+            records.append({
+                "filepath": str(file_path),
+                "label": class_name
+            })
+
+    df = pd.DataFrame(records)
+    logger.info(
+        "Built DataFrame from [%s] → %d images | Distribution: %s",
+        folder, len(df), df["label"].value_counts().to_dict()
+    )
+    return df
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Split strategies
+# ─────────────────────────────────────────────────────────────────────────────
+
+def split_flat(df: pd.DataFrame, split_config: dict) -> tuple:
+    """
+    Case 1: Full stratified 70/15/15 split on a flat dataset.
+
+    Args:
+        df (pd.DataFrame): Full dataset with columns [filepath, label].
+        split_config (dict): Split ratios and seed from config.
+
+    Returns:
+        tuple: (train_df, val_df, test_df)
+    """
+    train_ratio = split_config["train"]
+    val_ratio = split_config["val"]
+    test_ratio = split_config["test"]
+    seed = split_config["random_seed"]
+
+    assert abs(train_ratio + val_ratio + test_ratio - 1.0) < 1e-6, \
+        "Split ratios must sum to 1.0"
+
+    # ── Stage 1: carve out test set ───────────────────────────────────────
+    train_val_df, test_df = train_test_split(
+        df,
+        test_size=test_ratio,
+        stratify=df["label"],
+        random_state=seed
+    )
+
+    # ── Stage 2: split remaining into train and val ───────────────────────
+    val_ratio_adjusted = val_ratio / (train_ratio + val_ratio)
+
+    train_df, val_df = train_test_split(
+        train_val_df,
+        test_size=val_ratio_adjusted,
+        stratify=train_val_df["label"],
+        random_state=seed
+    )
+
+    logger.info("Case 1 (flat) split complete.")
+    return train_df, val_df, test_df
+
+
+def split_presplit(
+    raw_data_dir: Path,
+    classes: list,
+    valid_extensions: set,
+    split_config: dict
+) -> tuple:
+    """
+    Case 2: Dataset already has train/test folders.
+    Only carve val out of train (stratified).
+    Test set is used exactly as-is.
+
+    Args:
+        raw_data_dir (Path): Root folder containing train/ and test/ subfolders.
+        classes (list): Expected class names.
+        valid_extensions (set): Allowed file extensions.
+        split_config (dict): Split config from config YAML.
+
+    Returns:
+        tuple: (train_df, val_df, test_df)
+    """
+    seed = split_config["random_seed"]
+
+    # ── Load existing train and test sets ─────────────────────────────────
+    full_train_df = build_dataframe_from_folder(
+        raw_data_dir / "train", classes, valid_extensions
+    )
+    test_df = build_dataframe_from_folder(
+        raw_data_dir / "test", classes, valid_extensions
+    )
+
+    # ── Carve val out of train (stratified) ──────────────────────────────
+    val_ratio = split_config["val"]
+    train_ratio = split_config["train"]
+
+    # val ratio relative to train+val portion only
+    val_ratio_of_train = val_ratio / (train_ratio + val_ratio)
+
+    train_df, val_df = train_test_split(
+        full_train_df,
+        test_size=val_ratio_of_train,
+        stratify=full_train_df["label"],
+        random_state=seed
+    )
 
     logger.info(
-        "Split [%s] Class [%s] → Total: %d | Valid: %d | Corrupt: %d (%.1f%%)",
-        split_name, class_name, total, valid_count, corrupt_count, corrupt_pct * 100
+        "Case 2 (pre-split) split complete. "
+        "Test set untouched (%d images).", len(test_df)
     )
+    return train_df, val_df, test_df
 
-    if corrupt_pct > max_corrupt_pct:
-        raise ValueError(
-            f"Split [{split_name}] Class [{class_name}]: Corrupt percentage "
-            f"({corrupt_pct:.1%}) exceeds threshold ({max_corrupt_pct:.1%})."
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Logging and saving
+# ─────────────────────────────────────────────────────────────────────────────
+
+def log_split_summary(
+    train_df: pd.DataFrame,
+    val_df: pd.DataFrame,
+    test_df: pd.DataFrame
+) -> None:
+    """
+    Log class distribution for each split.
+
+    Args:
+        train_df (pd.DataFrame): Training split.
+        val_df (pd.DataFrame): Validation split.
+        test_df (pd.DataFrame): Test split.
+    """
+    for name, df in [("train", train_df), ("val", val_df), ("test", test_df)]:
+        dist = df["label"].value_counts().to_dict()
+        logger.info(
+            "Split [%s] → Total: %d | Distribution: %s",
+            name, len(df), dist
         )
 
-    if valid_count < min_images:
-        raise ValueError(
-            f"Split [{split_name}] Class [{class_name}]: Only {valid_count} "
-            f"valid images. Minimum required: {min_images}."
-        )
 
-    return {
-        "total": total,
-        "valid": valid_count,
-        "corrupt": corrupt_count,
-        "corrupt_pct": round(corrupt_pct * 100, 2)
-    }
+def save_manifests(
+    train_df: pd.DataFrame,
+    val_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    manifest_dir: Path
+) -> None:
+    """
+    Save split manifests as CSV files.
+
+    Args:
+        train_df (pd.DataFrame): Training split.
+        val_df (pd.DataFrame): Validation split.
+        test_df (pd.DataFrame): Test split.
+        manifest_dir (Path): Output directory for CSV files.
+    """
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+
+    train_df.to_csv(manifest_dir / "train_manifest.csv", index=False)
+    val_df.to_csv(manifest_dir / "val_manifest.csv", index=False)
+    test_df.to_csv(manifest_dir / "test_manifest.csv", index=False)
+
+    logger.info("Manifests saved to: %s", manifest_dir)
 
 
-def validate_images(config: dict) -> dict:
-    raw_data_dir = Path(config["paths"]["raw_data_dir"])
-    classes = config["classes"]
-    valid_extensions = set(config["valid_extensions"])
-    min_images = config["validation"]["min_images_per_class"]
-    max_corrupt_pct = config["validation"]["max_corrupt_pct"]
-
-    logger.info("Starting image validation at: %s", raw_data_dir)
-
-    structure = detect_structure(raw_data_dir, classes)
-    class_dirs = get_class_dirs(raw_data_dir, classes, structure)
-
-    summary = {}
-    for split_name, class_name, class_dir in class_dirs:
-        key = f"{split_name}/{class_name}"
-        summary[key] = validate_class_dir(
-            class_dir, class_name, split_name,
-            valid_extensions, min_images, max_corrupt_pct
-        )
-
-    logger.info("Validation complete. Summary: %s", summary)
-    return summary
-
+# ─────────────────────────────────────────────────────────────────────────────
+# Entry point
+# ─────────────────────────────────────────────────────────────────────────────
 
 def run(config: dict) -> None:
+    """
+    Entry point called by Airflow PythonOperator.
+
+    Detects dataset structure automatically and applies
+    the appropriate split strategy.
+
+    Args:
+        config (dict): Parsed pipeline config YAML as a dictionary.
+    """
     try:
-        summary = validate_images(config)
-        logger.info("✅ Validation passed.")
-    except (ValueError, FileNotFoundError) as e:
-        logger.error("❌ Validation failed: %s", str(e))
+        raw_data_dir = Path(config["paths"]["raw_data_dir"])
+        manifest_dir = Path(config["paths"]["split_manifest_dir"])
+        classes = config["classes"]
+        valid_extensions = set(config["valid_extensions"])
+        split_config = config["split"]
+
+        # ── Auto-detect dataset structure ─────────────────────────────────
+        structure = detect_structure(raw_data_dir, classes)
+
+        # ── Apply appropriate split strategy ──────────────────────────────
+        if structure == "flat":
+            df = build_dataframe_from_folder(
+                raw_data_dir, classes, valid_extensions
+            )
+            train_df, val_df, test_df = split_flat(df, split_config)
+
+        else:  # presplit
+            train_df, val_df, test_df = split_presplit(
+                raw_data_dir, classes, valid_extensions, split_config
+            )
+
+        # ── Log and save ──────────────────────────────────────────────────
+        log_split_summary(train_df, val_df, test_df)
+        save_manifests(train_df, val_df, test_df, manifest_dir)
+
+        logger.info("✅ Split complete.")
+
+    except Exception as e:
+        logger.error("❌ Split failed: %s", str(e))
         raise
