@@ -60,3 +60,14 @@ entry_points:
         default: training/configs/config_v1_mobilenet.yaml
         description: "Config with debug.enabled: true"
     command: "python training/src/train.py --config {config}"
+
+  # ── SimpleCNN from scratch ───────────────────────────────────────────
+  # No pretrained weights — proves resolution is the bottleneck
+  # not the model architecture
+  train_simplecnn:
+    parameters:
+      config:
+        type: str
+        default: training/configs/config_v1_simplecnn.yaml
+        description: "Path to SimpleCNN training config YAML"
+    command: "python training/src/train.py --config {config}"
