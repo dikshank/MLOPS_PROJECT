@@ -25,7 +25,7 @@ data:
   baseline_stats_path: "data/baseline_stats/v1_stats.json"
 
 training:
-  epochs: 10
+  epochs: 5
   batch_size: 16
   lr_head: 0.001
   lr_finetune: 0.0001
@@ -47,7 +47,7 @@ output:
 # Set enabled: true to run a quick 2-epoch test on 20 images
 # Verifies the entire pipeline works before committing to full training
 debug:
-  enabled: true
+  enabled: false
   num_images: 20
   epochs: 2
   batch_size: 4
