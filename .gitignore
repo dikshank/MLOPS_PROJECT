@@ -25,7 +25,6 @@ env/
 *.env.local
 
 # ── Data (tracked by DVC, not Git) ─────────────────────────
-data/raw/
 data/processed/
 data/baseline_stats/
 data/validate_done.flag

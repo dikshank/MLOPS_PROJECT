@@ -1,3 +1,5 @@
 C:/Users/HP/Desktop/mlops_dvc_remote/** filter=lfs diff=lfs merge=lfs -text
 data/raw/**/*.jpg filter=lfs diff=lfs merge=lfs -text
 data/raw/**/*.png filter=lfs diff=lfs merge=lfs -text
+/data/raw/**/*.jpg/ filter=lfs diff=lfs merge=lfs -text
+/data/raw/**/*.png/ filter=lfs diff=lfs merge=lfs -text
