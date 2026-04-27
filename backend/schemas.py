@@ -94,4 +94,3 @@ class FeedbackResponse(BaseModel):
     """
     received: bool = Field(..., example=True)
     message: str = Field(..., example="Feedback recorded. Thank you.")
-    

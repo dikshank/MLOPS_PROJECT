@@ -5,4 +5,3 @@ mlruns/
 logs/
 *.log
 .pytest_cache/
-training/models/

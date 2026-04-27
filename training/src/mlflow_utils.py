@@ -23,8 +23,6 @@ Custom logging beyond autolog:
     - baseline stats JSON as artifact
 """
 
-import os
-import json
 import logging
 import subprocess
 from pathlib import Path
@@ -96,20 +94,20 @@ def log_config_params(config: dict) -> None:
     """
     # ── Flatten config into MLflow params ─────────────────────────────────
     mlflow.log_params({
-        "model_name":       config["model"]["name"],
-        "img_size":         config["model"]["img_size"],
-        "freeze_base":      config["model"]["freeze_base"],
-        "unfreeze_epoch":   config["model"]["unfreeze_epoch"],
-        "num_unfreeze":     config["model"]["num_layers_to_unfreeze"],
-        "epochs":           config["training"]["epochs"],
-        "batch_size":       config["training"]["batch_size"],
-        "lr_head":          config["training"]["lr_head"],
-        "lr_finetune":      config["training"]["lr_finetune"],
-        "weight_decay":     config["training"]["weight_decay"],
-        "early_stop":       config["training"]["early_stopping_patience"],
-        "data_version":     config["data"]["version"],
-        "debug_mode":       config["debug"]["enabled"],
-        "num_classes":      2
+        "model_name": config["model"]["name"],
+        "img_size": config["model"]["img_size"],
+        "freeze_base": config["model"]["freeze_base"],
+        "unfreeze_epoch": config["model"]["unfreeze_epoch"],
+        "num_unfreeze": config["model"]["num_layers_to_unfreeze"],
+        "epochs": config["training"]["epochs"],
+        "batch_size": config["training"]["batch_size"],
+        "lr_head": config["training"]["lr_head"],
+        "lr_finetune": config["training"]["lr_finetune"],
+        "weight_decay": config["training"]["weight_decay"],
+        "early_stop": config["training"]["early_stopping_patience"],
+        "data_version": config["data"]["version"],
+        "debug_mode": config["debug"]["enabled"],
+        "num_classes": 2
     })
     logger.info("Config params logged to MLflow")
 
@@ -131,13 +129,13 @@ def log_tags(config: dict, param_counts: dict) -> None:
         param_counts (dict): Output of model.count_parameters().
     """
     mlflow.set_tags({
-        "git_commit_hash":  get_git_commit_hash(),
-        "data_version":     config["data"]["version"],
-        "experiment_type":  config["mlflow"]["experiment_type"],
-        "model_name":       config["model"]["name"],
-        "total_params":     param_counts["total"],
+        "git_commit_hash": get_git_commit_hash(),
+        "data_version": config["data"]["version"],
+        "experiment_type": config["mlflow"]["experiment_type"],
+        "model_name": config["model"]["name"],
+        "total_params": param_counts["total"],
         "trainable_params": param_counts["trainable"],
-        "debug_mode":       str(config["debug"]["enabled"])
+        "debug_mode": str(config["debug"]["enabled"])
     })
     logger.info("Tags logged to MLflow")
 
@@ -167,13 +165,13 @@ def log_epoch_metrics(
     """
     mlflow.log_metrics(
         {
-            "train_loss":    train_loss,
-            "train_recall":  train_recall,
-            "train_f1":      train_f1,
-            "val_recall":    val_recall,
-            "val_f1":        val_f1,
-            "val_accuracy":  val_accuracy,
-            "val_auc":       val_auc
+            "train_loss": train_loss,
+            "train_recall": train_recall,
+            "train_f1": train_f1,
+            "val_recall": val_recall,
+            "val_f1": val_f1,
+            "val_accuracy": val_accuracy,
+            "val_auc": val_auc
         },
         step=epoch
     )
@@ -240,7 +238,7 @@ def get_current_production_recall() -> float:
 
         # Get the run associated with the current Production model
         production_run_id = production_versions[0].run_id
-        production_run    = client.get_run(production_run_id)
+        client.get_run(production_run_id)
 
         # Extract val_recall from that run's metrics
         # MLflow stores per-step metrics — get the last value
@@ -383,9 +381,10 @@ def log_model(
 
     # ── Register model in MLflow registry ────────────────────────────────
     # This creates a new version every time — starts in "None" stage
-    model_uri = f"runs:/{mlflow.active_run().info.run_id}/pytorch_model"
+    # model_uri = f"runs:/{mlflow.active_run().info.run_id}/pytorch_model"
 
-    registered = mlflow.pytorch.log_model(
+    # ── Register model in MLflow registry ────────────────────────────────
+    mlflow.pytorch.log_model(
         pytorch_model=model,
         artifact_path="pytorch_model",
         registered_model_name="melanoma_classifier"
@@ -406,7 +405,7 @@ def log_model(
 
     # ── Champion / Challenger comparison ─────────────────────────────────
     current_production_recall = get_current_production_recall()
-    current_production_f1     = get_current_production_f1()
+    current_production_f1 = get_current_production_f1()
 
     recall_diff = new_val_recall - current_production_recall
 

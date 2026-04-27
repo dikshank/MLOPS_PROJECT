@@ -61,8 +61,8 @@ def get_predictions(
     """
     model.eval()
     all_labels = []
-    all_probs  = []
-    all_preds  = []
+    all_probs = []
+    all_preds = []
 
     with torch.no_grad():
         for images, labels in dataloader:
@@ -70,8 +70,8 @@ def get_predictions(
             labels = labels.to(device)
 
             logits = model(images)
-            probs  = torch.softmax(logits, dim=1)[:, 1]  # malignant probability
-            preds  = logits.argmax(dim=1)
+            probs = torch.softmax(logits, dim=1)[:, 1]  # malignant probability
+            preds = logits.argmax(dim=1)
 
             all_labels.extend(labels.cpu().numpy().tolist())
             all_probs.extend(probs.cpu().numpy().tolist())
@@ -102,8 +102,8 @@ def tune_threshold(all_labels: list, all_probs: list) -> tuple:
     min_precision = 0.3   # floor to avoid predicting everything as malignant
 
     best_threshold = 0.5
-    best_recall    = 0.0
-    best_f1        = 0.0
+    best_recall = 0.0
+    best_f1 = 0.0
 
     thresholds = np.arange(0.1, 0.9, 0.01)
 
@@ -111,17 +111,17 @@ def tune_threshold(all_labels: list, all_probs: list) -> tuple:
         preds = [1 if p >= thresh else 0 for p in all_probs]
 
         recall = recall_score(all_labels, preds, pos_label=1, zero_division=0)
-        f1     = f1_score(all_labels, preds, pos_label=1, zero_division=0)
+        f1 = f1_score(all_labels, preds, pos_label=1, zero_division=0)
 
         # Compute precision manually to apply floor
-        tp = sum(1 for l, p in zip(all_labels, preds) if l == 1 and p == 1)
-        fp = sum(1 for l, p in zip(all_labels, preds) if l == 0 and p == 1)
+        tp = sum(1 for lbl, p in zip(all_labels, preds) if lbl == 1 and p == 1)
+        fp = sum(1 for lbl, p in zip(all_labels, preds) if lbl == 0 and p == 1)
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
 
         if recall > best_recall and precision >= min_precision:
-            best_recall    = recall
+            best_recall = recall
             best_threshold = thresh
-            best_f1        = f1
+            best_f1 = f1
 
     logger.info(
         "Threshold tuning complete → best_threshold=%.2f | "
@@ -149,8 +149,8 @@ def compute_metrics(
     """
     preds = [1 if p >= threshold else 0 for p in all_probs]
 
-    recall   = recall_score(all_labels, preds, pos_label=1, zero_division=0)
-    f1       = f1_score(all_labels, preds, pos_label=1, zero_division=0)
+    recall = recall_score(all_labels, preds, pos_label=1, zero_division=0)
+    f1 = f1_score(all_labels, preds, pos_label=1, zero_division=0)
     accuracy = accuracy_score(all_labels, preds)
 
     # AUC requires both classes to be present
@@ -161,10 +161,10 @@ def compute_metrics(
         logger.warning("Only one class present — AUC set to 0.0")
 
     metrics = {
-        "recall":    round(recall, 4),
-        "f1":        round(f1, 4),
-        "accuracy":  round(accuracy, 4),
-        "auc":       round(auc, 4),
+        "recall": round(recall, 4),
+        "f1": round(f1, 4),
+        "accuracy": round(accuracy, 4),
+        "auc": round(auc, 4),
         "threshold": round(threshold, 4)
     }
 
@@ -188,10 +188,10 @@ def save_confusion_matrix(
     cm = confusion_matrix(all_labels, all_preds)
 
     cm_dict = {
-        "true_negative":  int(cm[0][0]),
+        "true_negative": int(cm[0][0]),
         "false_positive": int(cm[0][1]),
         "false_negative": int(cm[1][0]),
-        "true_positive":  int(cm[1][1])
+        "true_positive": int(cm[1][1])
     }
 
     save_path.parent.mkdir(parents=True, exist_ok=True)

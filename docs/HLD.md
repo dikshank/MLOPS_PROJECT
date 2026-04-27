@@ -10,6 +10,9 @@ to seek professional consultation.
 **Primary metric:** Recall — minimising false negatives (missed melanomas)
 is more important than minimising false positives (unnecessary consultations).
 
+**Secondary metric:** F1 score — used as tiebreaker when recall is equal
+between models, to avoid promoting models that flag everything as malignant.
+
 ---
 
 ## 2. Design Paradigm
@@ -31,9 +34,11 @@ subclassing. These are standard library conventions, not design choices.
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        USER BROWSER                         │
-│              nginx frontend (port 80)                       │
+│         nginx frontend (port 80) — two tabs:                │
+│         Screening Tab | Pipeline Dashboard Tab              │
 └──────────────────────────┬──────────────────────────────────┘
                            │ REST API (HTTP)
+                           │ API_BASE = window.API_BASE || "http://localhost:8000"
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
 │               FastAPI Backend (port 8000)                   │
@@ -42,6 +47,7 @@ subclassing. These are standard library conventions, not design choices.
 │  model_loader.py ──► MLflow Registry (mlruns/)              │
 │  predictor.py    ──► PyTorch model inference                │
 │  monitoring.py   ──► Prometheus metrics                     │
+│  main.py         ──► drift detection, retraining trigger    │
 └──────────┬──────────────────────────────────────────────────┘
            │ scrape /metrics
            ▼
@@ -57,8 +63,10 @@ subclassing. These are standard library conventions, not design choices.
 
 ┌─────────────────────────────────────────────────────────────┐
 │              Apache Airflow (port 8080)                     │
-│  Data engineering pipeline orchestration                    │
-│  DAG: validate → split → preprocess → baseline_stats        │
+│  Data engineering pipeline + retraining pipeline            │
+│  DAG 1: validate → split → preprocess → baseline_stats      │
+│  DAG 2: check_trigger → prepare_feedback → train →          │
+│          evaluate → cleanup (auto every 30 mins)            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -69,85 +77,127 @@ subclassing. These are standard library conventions, not design choices.
 ### 4.1 Loose Coupling
 Frontend and backend are completely independent services connected
 only via REST API calls. The frontend has no knowledge of the model
-architecture, inference logic, or MLflow registry. This allows either
-component to be updated independently.
+architecture, inference logic, or MLflow registry. The API base URL
+is configurable via `window.API_BASE` (falls back to localhost:8000).
+This allows either component to be updated independently.
 
 ### 4.2 Reproducibility
 Every experiment is reproducible via:
 ```
 git checkout <commit_hash>
-dvc pull
+dvc checkout
 mlflow run . -P config=<config_path>
 ```
 The combination of Git commit hash + DVC data version + MLflow run ID
 uniquely identifies every experiment.
 
-### 4.3 Champion/Challenger Model Promotion
+### 4.3 Champion/Challenger Model Promotion (Two-Stage)
 Models are never manually promoted to Production. After every training run,
-the new model's val_recall is compared with the current Production model.
-Only if the new model outperforms the existing champion is it promoted.
-This ensures FastAPI always serves the best model seen so far.
+a two-stage comparison is performed:
+
+**Stage 1 — Recall (primary metric, patient safety):**
+- If new_recall > current_recall + 0.02 → promote
+- If new_recall < current_recall - 0.02 → keep current
+
+**Stage 2 — F1 tiebreaker (when recall is tied within ±0.02):**
+- If new_f1 > current_f1 → promote (better balance)
+- Otherwise → keep current (stability wins)
+
+This ensures FastAPI always serves the safest AND most balanced model.
 
 ### 4.4 Environment Parity
 All services run in Docker containers defined by explicit Dockerfiles.
 `docker-compose.yml` ensures identical environments across development
-and demonstration.
+and demonstration. All 5 services run on a shared `mlops_network`.
+
+### 4.5 Automated Retraining
+The retraining DAG runs automatically every 30 minutes and checks for:
+- Misclassification rate > 10% (after >= 10 feedback submissions)
+- Drift score > 20% (pixel distribution vs baseline histogram)
+
+When triggered, it merges feedback images into training data and retrains
+all 3 models, auto-promoting the best to Production.
 
 ---
 
-## 5. Data Flow
+## 5. Model Architectures
+
+Three models are trained and compared:
+
+| Model | Type | Parameters | Notes |
+|---|---|---|---|
+| MobileNetV3-Small | Pretrained (ImageNet) | 1.5M (592K trainable) | Lightweight, fast on CPU |
+| EfficientNet-B0 | Pretrained (ImageNet) | 4M (2K trainable) | Stronger baseline |
+| SimpleCNN | From scratch | 102K (all trainable) | Proves resolution is bottleneck |
+
+All models use:
+- Input: 64x64 RGB images (32x32 raw upscaled during preprocessing)
+- Output: 2 classes (malignant, benign)
+- Loss: CrossEntropyLoss with class weights [1.0, 2.0]
+- Threshold: Auto-tuned on validation set to maximise recall
+
+---
+
+## 6. Data Flow
 
 ```
-Raw images (Google Drive)
-        ↓
-Airflow Pipeline (local Docker):
-    validate → split → preprocess → baseline_stats
-        ↓
-Processed images + manifests (local filesystem)
-        ↓
-Training (local CPU):
-    dataset.py → model.py → train.py → evaluate.py
-        ↓
+Raw images (32x32, local filesystem, DVC tracked)
+        |
+Airflow Data Pipeline DAG:
+    validate -> split -> preprocess (->64x64) -> baseline_stats
+        |
+Processed images + manifests + baseline stats (local filesystem)
+        |
+Training (local CPU, MLflow tracked):
+    dataset.py -> model.py -> train.py -> evaluate.py -> mlflow_utils.py
+    3 models trained: MobileNetV3, EfficientNet-B0, SimpleCNN
+        |
 MLflow Registry (mlruns/ local):
-    Auto-promote best recall model to Production
-        ↓
+    Two-stage champion/challenger: recall primary, F1 tiebreaker
+    Best model auto-promoted to Production
+        |
 FastAPI Backend:
     Load Production model at startup
-    Serve predictions via /predict
-    Collect feedback via /feedback
-        ↓
+    Serve predictions via /predict (saves image for retraining)
+    Collect feedback via /feedback (updates confusion matrix)
+    Detect drift via pixel histogram comparison
+        |
 Prometheus + Grafana:
-    Monitor real-world recall decay
-    Alert if recall drops or drift detected
-        ↓
-Airflow Retraining DAG:
-    Triggered manually or by drift alert
-    Retrains model, re-evaluates, auto-promotes if better
+    Monitor real-world recall, precision, drift score
+    Misclassification rate, retraining triggers
+        |
+Airflow Retraining DAG (auto every 30 mins):
+    check_trigger -> prepare_feedback_data -> trigger_training
+    -> evaluate_new_model -> cleanup
+    Retrains all 3 models, auto-promotes best
 ```
 
 ---
 
-## 6. Technology Choices and Rationale
+## 7. Technology Choices and Rationale
 
 | Component | Choice | Rationale |
 |---|---|---|
-| Model architecture | MobileNetV3-Small / EfficientNet-B0 | Lightweight, pretrained, CPU-deployable |
-| Data pipeline | Apache Airflow | Satisfies rubric, provides visual DAG and error tracking |
-| Experiment tracking | MLflow (local) | No cloud dependency, full registry support |
-| Data versioning | DVC + Google Drive | Reproducible data lineage, no cloud compute |
-| Serving | FastAPI | Fast, async, automatic OpenAPI docs, Prometheus-compatible |
-| Monitoring | Prometheus + Grafana | Industry standard, lightweight, NRT dashboards |
-| Containerisation | Docker + docker-compose | Environment parity, loose coupling between services |
-| Metric focus | Recall | False negatives (missed cancers) are clinically more dangerous |
+| Model architectures | MobileNetV3-Small, EfficientNet-B0, SimpleCNN | Pretrained vs from-scratch comparison; CPU-deployable |
+| Data pipeline | Apache Airflow | Visual DAG, error tracking, task-level logging |
+| Experiment tracking | MLflow (local) | No cloud dependency, full registry + artifact support |
+| Data versioning | DVC + local remote | Reproducible data lineage, on-premise constraint |
+| Serving | FastAPI | Async, automatic OpenAPI docs, Prometheus-compatible |
+| Monitoring | Prometheus + Grafana | Industry standard, NRT dashboards, alert support |
+| Containerisation | Docker + docker-compose | Environment parity, 5 services on shared network |
+| Primary metric | Recall | False negatives (missed cancers) are clinically dangerous |
+| Secondary metric | F1 | Tiebreaker to avoid all-malignant degenerate models |
 
 ---
 
-## 7. Acceptance Criteria
+## 8. Acceptance Criteria
 
 | Criterion | Target |
 |---|---|
-| val_recall (v2 model) | ≥ 0.80 |
-| /predict latency | < 500ms on CPU |
-| Error rate | < 5% |
-| All unit tests | Pass |
+| /predict latency | < 200ms on CPU |
+| Error rate | < 5% of requests |
+| All unit tests | 100% pass rate |
 | All Docker services start | Without errors |
+| Model loaded at startup | Production model auto-loaded |
+| Drift detection | Operational (threshold 20%) |
+| Retraining trigger | Operational (threshold 10% misclassification) |

@@ -16,7 +16,6 @@ training happens on Windows but serving happens in Linux Docker container.
 
 import os
 import glob
-import torch
 import mlflow
 import mlflow.pytorch
 from pathlib import Path
@@ -29,14 +28,14 @@ logger = get_logger("model_loader")
 
 # ── Registry config ───────────────────────────────────────────────────────────
 REGISTERED_MODEL_NAME = "melanoma_classifier"
-MODEL_STAGE            = "Production"
+MODEL_STAGE = "Production"
 
 # ── Global model cache ────────────────────────────────────────────────────────
-_model      = None
+_model = None
 _model_meta = {
-    "version":   None,
-    "name":      None,
-    "run_id":    None,
+    "version": None,
+    "name": None,
+    "run_id": None,
     "threshold": 0.35
 }
 
@@ -214,16 +213,16 @@ def load_model() -> bool:
 
         # ── Cache in memory ───────────────────────────────────────────────
         _model = model
-        _model_meta["version"]   = str(version)
-        _model_meta["run_id"]    = run_id
+        _model_meta["version"] = str(version)
+        _model_meta["run_id"] = run_id
         _model_meta["threshold"] = threshold
 
         # ── Update Prometheus metrics ─────────────────────────────────────
         MODEL_INFO.info({
-            "version":   str(version),
-            "run_id":    run_id,
+            "version": str(version),
+            "run_id": run_id,
             "threshold": str(threshold),
-            "stage":     MODEL_STAGE
+            "stage": MODEL_STAGE
         })
         MODEL_LOAD_STATUS.set(1)
 

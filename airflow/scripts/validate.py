@@ -146,7 +146,7 @@ def validate_images(config: dict) -> dict:
 
 def run(config: dict) -> None:
     try:
-        summary = validate_images(config)
+        validate_images(config)
         logger.info("✅ Validation passed.")
     except (ValueError, FileNotFoundError) as e:
         logger.error("❌ Validation failed: %s", str(e))

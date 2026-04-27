@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MelanoCheck — Architecture Diagram</title>
+<style>
+:root {
+  --teal: #0a9396;
+  --teal-dark: #005f73;
+  --teal-light: #94d2bd;
+  --bg: #f8f9fa;
+  --white: #ffffff;
+  --gray: #6c757d;
+  --gray-light: #e9ecef;
+  --text: #212529;
+  --shadow: 0 2px 16px rgba(0,0,0,0.08);
+  --radius: 12px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+header {
+  background: linear-gradient(135deg, var(--teal-dark), var(--teal));
+  color: white;
+  padding: 2rem;
+  text-align: center;
+}
+header h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 0.3rem; }
+header p { opacity: 0.85; font-size: 0.95rem; }
+.container { max-width: 1100px; margin: 0 auto; padding: 2rem 1rem; }
+
+/* Diagram section */
+.diagram-section {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 2rem;
+  box-shadow: var(--shadow);
+  margin-bottom: 2rem;
+}
+.diagram-section h2 {
+  color: var(--teal-dark);
+  font-size: 1.2rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--teal-light);
+}
+.diagram-wrap {
+  width: 100%;
+  overflow-x: auto;
+  background: #fafafa;
+  border-radius: 8px;
+  padding: 1rem;
+  border: 1px solid var(--gray-light);
+}
+
+/* Blocks explanation */
+.blocks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+.layer-section {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+}
+.layer-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--white);
+  padding: 0.3rem 0.8rem;
+  border-radius: 20px;
+  display: inline-block;
+  margin-bottom: 1rem;
+}
+.layer-data     .layer-title { background: #1D9E75; }
+.layer-training .layer-title { background: #7F77DD; }
+.layer-registry .layer-title { background: #BA7517; }
+.layer-serving  .layer-title { background: #378ADD; }
+.layer-monitor  .layer-title { background: #D85A30; }
+.layer-retrain  .layer-title { background: #639922; }
+
+.block {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--gray-light);
+}
+.block:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+.block-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--teal-dark);
+  margin-bottom: 0.3rem;
+}
+.block-desc {
+  font-size: 0.82rem;
+  color: var(--gray);
+  line-height: 1.5;
+}
+.block-desc ul {
+  list-style: none;
+  margin-top: 0.3rem;
+}
+.block-desc ul li::before {
+  content: "→ ";
+  color: var(--teal);
+  font-weight: 700;
+}
+
+/* Data flow */
+.flow-section {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 1.5rem 2rem;
+  box-shadow: var(--shadow);
+  margin-bottom: 2rem;
+}
+.flow-section h2 {
+  color: var(--teal-dark);
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--teal-light);
+}
+.flow-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  align-items: center;
+}
+.flow-step {
+  background: var(--bg);
+  border: 1px solid var(--gray-light);
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--teal-dark);
+  white-space: nowrap;
+}
+.flow-arrow {
+  color: var(--teal-light);
+  font-size: 1.2rem;
+  padding: 0 0.3rem;
+}
+pre {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  padding: 1.2rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  overflow-x: auto;
+  margin-top: 0.8rem;
+  line-height: 1.6;
+}
+footer {
+  text-align: center;
+  padding: 1.5rem;
+  font-size: 0.8rem;
+  color: var(--gray);
+  border-top: 1px solid var(--gray-light);
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🔬 MelanoCheck — System Architecture</h1>
+  <p>End-to-end MLOps pipeline for low-resolution melanoma detection</p>
+</header>
+
+<div class="container">
+
+  <!-- Diagram -->
+  <div class="diagram-section">
+    <h2>Architecture Diagram</h2>
+    <div class="diagram-wrap">
+      <svg width="100%" viewBox="0 0 680 720" role="img" xmlns="http://www.w3.org/2000/svg">
+        <title>Melanoma Detection MLOps Architecture</title>
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+          <style>
+            .th{font:500 13px 'Segoe UI',sans-serif}
+            .ts{font:400 11px 'Segoe UI',sans-serif}
+            .arr{stroke:#aaa;stroke-width:1.5;fill:none}
+            .leader{stroke:#ccc;stroke-width:0.5;stroke-dasharray:4 3;fill:none}
+          </style>
+        </defs>
+
+        <!-- Row labels -->
+        <text style="font:700 9px sans-serif;fill:#aaa" x="6" y="72">DATA</text>
+        <text style="font:700 9px sans-serif;fill:#aaa" x="6" y="182">TRAIN</text>
+        <text style="font:700 9px sans-serif;fill:#aaa" x="6" y="283">REGISTRY</text>
+        <text style="font:700 9px sans-serif;fill:#aaa" x="6" y="390">SERVE</text>
+        <text style="font:700 9px sans-serif;fill:#aaa" x="6" y="493">MONITOR</text>
+        <text style="font:700 9px sans-serif;fill:#aaa" x="6" y="598">RETRAIN</text>
+
+        <!-- Row 1: Data -->
+        <rect x="40" y="40" width="140" height="56" rx="8" fill="#E1F5EE" stroke="#1D9E75" stroke-width="0.5"/>
+        <text class="th" x="110" y="63" text-anchor="middle" dominant-baseline="central" fill="#085041">Raw data</text>
+        <text class="ts" x="110" y="81" text-anchor="middle" dominant-baseline="central" fill="#0F6E56">32x32 · DVC tracked</text>
+
+        <rect x="220" y="40" width="200" height="56" rx="8" fill="#E1F5EE" stroke="#1D9E75" stroke-width="0.5"/>
+        <text class="th" x="320" y="58" text-anchor="middle" dominant-baseline="central" fill="#085041">Airflow pipeline</text>
+        <text class="ts" x="320" y="76" text-anchor="middle" dominant-baseline="central" fill="#0F6E56">validate→split→preprocess→stats</text>
+
+        <rect x="460" y="40" width="180" height="56" rx="8" fill="#E1F5EE" stroke="#1D9E75" stroke-width="0.5"/>
+        <text class="th" x="550" y="63" text-anchor="middle" dominant-baseline="central" fill="#085041">Processed data</text>
+        <text class="ts" x="550" y="81" text-anchor="middle" dominant-baseline="central" fill="#0F6E56">64x64 · manifests · stats</text>
+
+        <line x1="180" y1="68" x2="218" y2="68" class="arr" marker-end="url(#arrow)"/>
+        <line x1="420" y1="68" x2="458" y2="68" class="arr" marker-end="url(#arrow)"/>
+
+        <!-- Row 2: Training -->
+        <rect x="40" y="148" width="175" height="56" rx="8" fill="#EEEDFE" stroke="#7F77DD" stroke-width="0.5"/>
+        <text class="th" x="128" y="166" text-anchor="middle" dominant-baseline="central" fill="#3C3489">MobileNetV3</text>
+        <text class="ts" x="128" y="184" text-anchor="middle" dominant-baseline="central" fill="#534AB7">pretrained · 1.5M params</text>
+
+        <rect x="253" y="148" width="174" height="56" rx="8" fill="#EEEDFE" stroke="#7F77DD" stroke-width="0.5"/>
+        <text class="th" x="340" y="166" text-anchor="middle" dominant-baseline="central" fill="#3C3489">EfficientNet-B0</text>
+        <text class="ts" x="340" y="184" text-anchor="middle" dominant-baseline="central" fill="#534AB7">pretrained · 4M params</text>
+
+        <rect x="465" y="148" width="175" height="56" rx="8" fill="#EEEDFE" stroke="#7F77DD" stroke-width="0.5"/>
+        <text class="th" x="553" y="166" text-anchor="middle" dominant-baseline="central" fill="#3C3489">SimpleCNN</text>
+        <text class="ts" x="553" y="184" text-anchor="middle" dominant-baseline="central" fill="#534AB7">from scratch · 102K params</text>
+
+        <line x1="550" y1="96" x2="550" y2="146" class="arr" marker-end="url(#arrow)"/>
+        <line x1="550" y1="120" x2="340" y2="120" stroke="#ccc" stroke-width="0.5" stroke-dasharray="4 3" fill="none"/>
+        <line x1="340" y1="120" x2="130" y2="120" stroke="#ccc" stroke-width="0.5" stroke-dasharray="4 3" fill="none"/>
+        <line x1="340" y1="120" x2="340" y2="146" class="arr" marker-end="url(#arrow)"/>
+        <line x1="130" y1="120" x2="130" y2="146" class="arr" marker-end="url(#arrow)"/>
+
+        <!-- Row 3: Registry -->
+        <rect x="200" y="253" width="280" height="56" rx="8" fill="#FAEEDA" stroke="#BA7517" stroke-width="0.5"/>
+        <text class="th" x="340" y="271" text-anchor="middle" dominant-baseline="central" fill="#412402">MLflow registry</text>
+        <text class="ts" x="340" y="289" text-anchor="middle" dominant-baseline="central" fill="#633806">champion/challenger · recall → F1</text>
+
+        <line x1="128" y1="204" x2="250" y2="271" class="arr" marker-end="url(#arrow)"/>
+        <line x1="340" y1="204" x2="340" y2="251" class="arr" marker-end="url(#arrow)"/>
+        <line x1="553" y1="204" x2="430" y2="271" class="arr" marker-end="url(#arrow)"/>
+
+        <!-- Row 4: Serving -->
+        <rect x="40" y="358" width="158" height="56" rx="8" fill="#E6F1FB" stroke="#378ADD" stroke-width="0.5"/>
+        <text class="th" x="119" y="376" text-anchor="middle" dominant-baseline="central" fill="#042C53">FastAPI backend</text>
+        <text class="ts" x="119" y="394" text-anchor="middle" dominant-baseline="central" fill="#185FA5">/predict /feedback /metrics</text>
+
+        <rect x="240" y="358" width="158" height="56" rx="8" fill="#E6F1FB" stroke="#378ADD" stroke-width="0.5"/>
+        <text class="th" x="319" y="376" text-anchor="middle" dominant-baseline="central" fill="#042C53">nginx frontend</text>
+        <text class="ts" x="319" y="394" text-anchor="middle" dominant-baseline="central" fill="#185FA5">Screening · Pipeline tabs</text>
+
+        <rect x="450" y="358" width="190" height="56" rx="8" fill="#E6F1FB" stroke="#378ADD" stroke-width="0.5"/>
+        <text class="th" x="545" y="376" text-anchor="middle" dominant-baseline="central" fill="#042C53">Docker Compose</text>
+        <text class="ts" x="545" y="394" text-anchor="middle" dominant-baseline="central" fill="#185FA5">5 services · mlops_network</text>
+
+        <line x1="340" y1="309" x2="200" y2="356" class="arr" marker-end="url(#arrow)"/>
+        <line x1="198" y1="386" x2="238" y2="386" class="arr" marker-end="url(#arrow)"/>
+
+        <!-- Row 5: Monitoring -->
+        <rect x="40" y="462" width="158" height="56" rx="8" fill="#FAECE7" stroke="#D85A30" stroke-width="0.5"/>
+        <text class="th" x="119" y="480" text-anchor="middle" dominant-baseline="central" fill="#4A1B0C">Prometheus</text>
+        <text class="ts" x="119" y="498" text-anchor="middle" dominant-baseline="central" fill="#712B13">scrapes /metrics · 15 metrics</text>
+
+        <rect x="240" y="462" width="158" height="56" rx="8" fill="#FAECE7" stroke="#D85A30" stroke-width="0.5"/>
+        <text class="th" x="319" y="480" text-anchor="middle" dominant-baseline="central" fill="#4A1B0C">Grafana</text>
+        <text class="ts" x="319" y="498" text-anchor="middle" dominant-baseline="central" fill="#712B13">NRT dashboard · 13 panels</text>
+
+        <rect x="450" y="462" width="190" height="56" rx="8" fill="#FAECE7" stroke="#D85A30" stroke-width="0.5"/>
+        <text class="th" x="545" y="480" text-anchor="middle" dominant-baseline="central" fill="#4A1B0C">Drift detection</text>
+        <text class="ts" x="545" y="498" text-anchor="middle" dominant-baseline="central" fill="#712B13">pixel histogram · MAE · flag</text>
+
+        <line x1="119" y1="414" x2="119" y2="460" class="arr" marker-end="url(#arrow)"/>
+        <line x1="119" y1="490" x2="238" y2="490" class="arr" marker-end="url(#arrow)"/>
+        <line x1="198" y1="490" x2="450" y2="490" stroke="#ccc" stroke-width="0.5" stroke-dasharray="4 3" fill="none" marker-end="url(#arrow)"/>
+
+        <!-- Row 6: Retraining -->
+        <rect x="40" y="566" width="178" height="56" rx="8" fill="#EAF3DE" stroke="#639922" stroke-width="0.5"/>
+        <text class="th" x="129" y="584" text-anchor="middle" dominant-baseline="central" fill="#173404">Retraining DAG</text>
+        <text class="ts" x="129" y="602" text-anchor="middle" dominant-baseline="central" fill="#3B6D11">auto every 30 mins · 5 tasks</text>
+
+        <rect x="258" y="566" width="178" height="56" rx="8" fill="#EAF3DE" stroke="#639922" stroke-width="0.5"/>
+        <text class="th" x="347" y="584" text-anchor="middle" dominant-baseline="central" fill="#173404">Feedback loop</text>
+        <text class="ts" x="347" y="602" text-anchor="middle" dominant-baseline="central" fill="#3B6D11">misclass 10% · drift 20%</text>
+
+        <rect x="480" y="566" width="160" height="56" rx="8" fill="#EAF3DE" stroke="#639922" stroke-width="0.5"/>
+        <text class="th" x="560" y="584" text-anchor="middle" dominant-baseline="central" fill="#173404">Git + DVC</text>
+        <text class="ts" x="560" y="602" text-anchor="middle" dominant-baseline="central" fill="#3B6D11">code · data · reproducibility</text>
+
+        <line x1="119" y1="518" x2="119" y2="564" class="arr" marker-end="url(#arrow)"/>
+        <line x1="545" y1="518" x2="545" y2="564" class="arr" marker-end="url(#arrow)"/>
+        <line x1="319" y1="518" x2="347" y2="564" class="arr" marker-end="url(#arrow)"/>
+
+        <!-- Feedback loop back to training -->
+        <path d="M40 594 Q22 400 40 176" fill="none" stroke="#aaa" stroke-width="0.5" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+
+        <!-- Legend -->
+        <rect x="40" y="658" width="12" height="12" rx="2" fill="#1D9E75" opacity="0.5"/>
+        <text class="ts" x="58" y="668" fill="#666">Data</text>
+        <rect x="110" y="658" width="12" height="12" rx="2" fill="#7F77DD" opacity="0.5"/>
+        <text class="ts" x="128" y="668" fill="#666">Training</text>
+        <rect x="200" y="658" width="12" height="12" rx="2" fill="#BA7517" opacity="0.5"/>
+        <text class="ts" x="218" y="668" fill="#666">Registry</text>
+        <rect x="290" y="658" width="12" height="12" rx="2" fill="#378ADD" opacity="0.5"/>
+        <text class="ts" x="308" y="668" fill="#666">Serving</text>
+        <rect x="375" y="658" width="12" height="12" rx="2" fill="#D85A30" opacity="0.5"/>
+        <text class="ts" x="393" y="668" fill="#666">Monitoring</text>
+        <rect x="480" y="658" width="12" height="12" rx="2" fill="#639922" opacity="0.5"/>
+        <text class="ts" x="498" y="668" fill="#666">Retraining</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Block Explanations -->
+  <h2 style="color:var(--teal-dark);margin-bottom:1rem;font-size:1.3rem">Block Explanations</h2>
+
+  <div class="blocks-grid">
+
+    <!-- Data Layer -->
+    <div class="layer-section layer-data">
+      <span class="layer-title">Data Layer</span>
+      <div class="block">
+        <div class="block-name">Raw Data</div>
+        <div class="block-desc">
+          32×32 pixel skin lesion images stored locally on filesystem.
+          <ul>
+            <li>801 images tracked by DVC (local remote)</li>
+            <li>Two classes: malignant and benign</li>
+            <li>Git tracks .dvc pointer files for reproducibility</li>
+          </ul>
+        </div>
+      </div>
+      <div class="block">
+        <div class="block-name">Airflow Pipeline</div>
+        <div class="block-desc">
+          Apache Airflow 2.8.1 orchestrating 4-task data DAG.
+          <ul>
+            <li>validate: checks corrupt/zero-byte files</li>
+            <li>split: stratified 70/15/15 train/val/test</li>
+            <li>preprocess: resize 32×32 → 64×64 RGB</li>
+            <li>baseline_stats: pixel histogram for drift detection</li>
+          </ul>
+        </div>
+      </div>
+      <div class="block">
+        <div class="block-name">Processed Data</div>
+        <div class="block-desc">
+          64×64 RGB images + CSV manifests + baseline stats JSON.
+          <ul>
+            <li>164 train / 36 val / 600 test images</li>
+            <li>baseline_stats/v1_stats.json for drift detection</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Training Layer -->
+    <div class="layer-section layer-training">
+      <span class="layer-title">Training Layer</span>
+      <div class="block">
+        <div class="block-name">MobileNetV3-Small</div>
+        <div class="block-desc">
+          Pretrained on ImageNet, base layers frozen.
+          <ul>
+            <li>1.5M total / 592K trainable parameters</li>
+            <li>Lightweight — fast on CPU</li>
+            <li>All runs tracked in MLflow experiment baseline-v1</li>
+          </ul>
+        </div>
+      </div>
+      <div class="block">
+        <div class="block-name">EfficientNet-B0</div>
+        <div class="block-desc">
+          Pretrained on ImageNet, base layers frozen.
+          <ul>
+            <li>4M total / 2K trainable parameters</li>
+            <li>Stronger feature extractor than MobileNet</li>
+          </ul>
+        </div>
+      </div>
+      <div class="block">
+        <div class="block-name">SimpleCNN</div>
+        <div class="block-desc">
+          Custom CNN built from scratch — no pretrained weights.
+          <ul>
+            <li>102K parameters, all trainable</li>
+            <li>3 conv blocks + GAP + FC layers</li>
+            <li>Proves resolution is the bottleneck, not architecture</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Registry -->
+    <div class="layer-section layer-registry">
+      <span class="layer-title">Model Registry</span>
+      <div class="block">
+        <div class="block-name">MLflow Registry</div>
+        <div class="block-desc">
+          Local MLflow registry in mlruns/ folder.
+          <ul>
+            <li>Every run: params, per-epoch metrics, artifacts</li>
+            <li>Two-stage champion/challenger auto-promotion</li>
+            <li>Stage 1: compare val_recall (primary)</li>
+            <li>Stage 2: compare val_F1 (tiebreaker)</li>
+            <li>Production model auto-loaded by FastAPI</li>
+            <li>UI at http://localhost:5000</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Serving -->
+    <div class="layer-section layer-serving">
+      <span class="layer-title">Serving Layer</span>
+      <div class="block">
+        <div class="block-name">FastAPI Backend</div>
+        <div class="block-desc">
+          Python 3.10, FastAPI 0.111.0, port 8000.
+          <ul>
+            <li>/predict — classify image, save for retraining</li>
+            <li>/feedback — ground truth, update recall metrics</li>
+            <li>/health — liveness check</li>
+            <li>/ready — model readiness + auto-reload</li>
+            <li>/metrics — Prometheus scrape endpoint</li>
+          </ul>
+        </div>
+      </div>
+      <div class="block">
+        <div class="block-name">nginx Frontend</div>
+        <div class="block-desc">
+          nginx:alpine serving static HTML/CSS/JS, port 80.
+          <ul>
+            <li>Screening tab — upload and analyse images</li>
+            <li>Pipeline Dashboard tab — live metrics + tool links</li>
+            <li>API_BASE configurable via window.API_BASE</li>
+          </ul>
+        </div>
+      </div>
+      <div class="block">
+        <div class="block-name">Docker Compose</div>
+        <div class="block-desc">
+          5 services on shared mlops_network.
+          <ul>
+            <li>melanoma_frontend (port 80)</li>
+            <li>melanoma_backend (port 8000)</li>
+            <li>melanoma_mlflow (port 5000)</li>
+            <li>melanoma_prometheus (port 9090)</li>
+            <li>melanoma_grafana (port 3000)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Monitoring -->
+    <div class="layer-section layer-monitor">
+      <span class="layer-title">Monitoring Layer</span>
+      <div class="block">
+        <div class="block-name">Prometheus</div>
+        <div class="block-desc">
+          Scrapes /metrics every 15 seconds, port 9090.
+          <ul>
+            <li>15 custom metrics tracked</li>
+            <li>Request counts, latency, predictions, errors</li>
+          </ul>
+        </div>
+      </div>
+      <div class="block">
+        <div class="block-name">Grafana</div>
+        <div class="block-desc">
+          NRT dashboard at http://localhost:3000, port 3000.
+          <ul>
+            <li>13 panels: drift, recall, misclassification, etc.</li>
+            <li>Auto-provisioned from grafana/provisioning/</li>
+          </ul>
+        </div>
+      </div>
+      <div class="block">
+        <div class="block-name">Drift Detection</div>
+        <div class="block-desc">
+          Runs on every /predict call.
+          <ul>
+            <li>Pixel histogram (10 bins) of incoming image</li>
+            <li>MAE vs baseline histogram from Airflow</li>
+            <li>Score > 20% → writes retrain_needed.flag</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Retraining -->
+    <div class="layer-section layer-retrain">
+      <span class="layer-title">Retraining Layer</span>
+      <div class="block">
+        <div class="block-name">Retraining DAG</div>
+        <div class="block-desc">
+          Airflow DAG running automatically every 30 minutes.
+          <ul>
+            <li>check_trigger → reads retrain_needed.flag</li>
+            <li>prepare_feedback_data → merge with training data</li>
+            <li>trigger_training → retrains all 3 models</li>
+            <li>evaluate_new_model → champion/challenger</li>
+            <li>cleanup → archive feedback images</li>
+          </ul>
+        </div>
+      </div>
+      <div class="block">
+        <div class="block-name">Feedback Loop</div>
+        <div class="block-desc">
+          Triggered when thresholds exceeded.
+          <ul>
+            <li>Misclassification rate > 10% (after 10+ feedback)</li>
+            <li>Drift score > 20%</li>
+            <li>Images saved with 0o777 permissions for cross-container access</li>
+          </ul>
+        </div>
+      </div>
+      <div class="block">
+        <div class="block-name">Git + DVC</div>
+        <div class="block-desc">
+          Full reproducibility stack.
+          <ul>
+            <li>Git: code, configs, .dvc pointer files</li>
+            <li>DVC: raw data (801 images, local remote)</li>
+            <li>dvc.yaml: 5-stage CI pipeline DAG</li>
+            <li>Every run: git hash + MLflow run ID</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Data Flow -->
+  <div class="flow-section">
+    <h2>End-to-End Data Flow</h2>
+    <div class="flow-steps">
+      <div class="flow-step">Raw Data (DVC)</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">Airflow Pipeline</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">Training (3 models)</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">MLflow Registry</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">FastAPI Serving</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">Monitoring</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">Auto-Retraining</div>
+      <div class="flow-arrow">↩</div>
+    </div>
+    <pre>
+git checkout &lt;commit_hash&gt;   # exact code state
+dvc checkout                  # exact data state
+mlflow run . -P config=training/configs/config_v1_simplecnn.yaml
+# → reproduces any experiment exactly</pre>
+  </div>
+
+</div>
+
+<footer>
+  MelanoCheck MLOps System — Architecture Documentation
+</footer>
+
+</body>
+</html>

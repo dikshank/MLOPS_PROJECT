@@ -25,6 +25,19 @@ Debug mode:
     Verifies entire pipeline end-to-end in ~2 minutes
 """
 
+import mlflow
+from mlflow_utils import (
+    setup_mlflow,
+    log_config_params,
+    log_tags,
+    log_epoch_metrics,
+    log_threshold,
+    log_artifacts,
+    log_model
+)
+from evaluate import evaluate
+from model import get_model, unfreeze_last_layers, count_parameters
+from dataset import MelanomaDataset
 import argparse
 import logging
 import yaml
@@ -37,20 +50,6 @@ from torch.utils.data import DataLoader
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
 
-from dataset import MelanomaDataset
-from model import get_model, unfreeze_last_layers, count_parameters
-from evaluate import evaluate
-from mlflow_utils import (
-    setup_mlflow,
-    log_config_params,
-    log_tags,
-    log_epoch_metrics,
-    log_threshold,
-    log_artifacts,
-    log_model
-)
-
-import mlflow
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -94,10 +93,10 @@ def build_dataloaders(config: dict) -> tuple:
     Returns:
         tuple: (train_loader, val_loader, test_loader)
     """
-    debug       = config["debug"]["enabled"]
-    debug_size  = config["debug"]["num_images"]
-    img_size    = config["model"]["img_size"]
-    batch_size  = config["debug"]["batch_size"] if debug else config["training"]["batch_size"]
+    debug = config["debug"]["enabled"]
+    debug_size = config["debug"]["num_images"]
+    img_size = config["model"]["img_size"]
+    batch_size = config["debug"]["batch_size"] if debug else config["training"]["batch_size"]
     manifest_dir = Path(config["data"]["manifest_dir"])
 
     train_ds = MelanomaDataset(
@@ -163,7 +162,7 @@ def train_one_epoch(
 
     model.train()
     running_loss = 0.0
-    all_preds  = []
+    all_preds = []
     all_labels = []
 
     for images, labels in dataloader:
@@ -173,7 +172,7 @@ def train_one_epoch(
         # ── Forward pass ──────────────────────────────────────────────────
         optimizer.zero_grad(set_to_none=True)
         logits = model(images)
-        loss   = criterion(logits, labels)
+        loss = criterion(logits, labels)
 
         # ── Backward pass ─────────────────────────────────────────────────
         loss.backward()
@@ -185,8 +184,8 @@ def train_one_epoch(
         all_labels.extend(labels.cpu().numpy().tolist())
 
     avg_loss = running_loss / len(dataloader)
-    recall   = recall_score(all_labels, all_preds, pos_label=1, zero_division=0)
-    f1       = f1_score(all_labels, all_preds, pos_label=1, zero_division=0)
+    recall = recall_score(all_labels, all_preds, pos_label=1, zero_division=0)
+    f1 = f1_score(all_labels, all_preds, pos_label=1, zero_division=0)
 
     return avg_loss, float(recall), float(f1)
 
@@ -210,7 +209,7 @@ def run_training(config: dict) -> None:
         config["training"]["epochs"] = config["debug"]["epochs"]
 
     # ── Directories ───────────────────────────────────────────────────────
-    model_dir     = Path(config["output"]["model_dir"])
+    model_dir = Path(config["output"]["model_dir"])
     artifacts_dir = Path(config["output"]["artifacts_dir"])
     model_dir.mkdir(parents=True, exist_ok=True)
     artifacts_dir.mkdir(parents=True, exist_ok=True)
@@ -255,14 +254,14 @@ def run_training(config: dict) -> None:
         )
 
         # ── Training loop ─────────────────────────────────────────────────
-        best_val_recall   = 0.0
-        best_val_f1       = 0.0
-        best_threshold    = 0.5
-        patience_counter  = 0
-        patience          = config["training"]["early_stopping_patience"]
-        unfreeze_epoch    = config["model"]["unfreeze_epoch"]
-        total_epochs      = config["training"]["epochs"]
-        phase_switched    = False
+        best_val_recall = 0.0
+        best_val_f1 = 0.0
+        best_threshold = 0.5
+        patience_counter = 0
+        patience = config["training"]["early_stopping_patience"]
+        unfreeze_epoch = config["model"]["unfreeze_epoch"]
+        total_epochs = config["training"]["epochs"]
+        phase_switched = False
 
         for epoch in range(1, total_epochs + 1):
 
@@ -327,8 +326,8 @@ def run_training(config: dict) -> None:
             if val_metrics["recall"] > best_val_recall:
                 # Stage 1: recall improved — always save
                 best_val_recall = val_metrics["recall"]
-                best_val_f1     = val_metrics["f1"]
-                best_threshold  = val_threshold
+                best_val_f1 = val_metrics["f1"]
+                best_threshold = val_threshold
                 torch.save(model.state_dict(), checkpoint_path)
                 patience_counter = 0
                 logger.info(
@@ -336,7 +335,7 @@ def run_training(config: dict) -> None:
                 )
             elif val_metrics["recall"] == best_val_recall and val_metrics["f1"] > best_val_f1:
                 # Stage 2: recall tied but F1 improved — save better balanced model
-                best_val_f1    = val_metrics["f1"]
+                best_val_f1 = val_metrics["f1"]
                 best_threshold = val_threshold
                 torch.save(model.state_dict(), checkpoint_path)
                 patience_counter = 0
@@ -384,10 +383,10 @@ def run_training(config: dict) -> None:
 
         # ── Log final test metrics ────────────────────────────────────────
         mlflow.log_metrics({
-            "test_recall":   test_metrics["recall"],
-            "test_f1":       test_metrics["f1"],
+            "test_recall": test_metrics["recall"],
+            "test_f1": test_metrics["f1"],
             "test_accuracy": test_metrics["accuracy"],
-            "test_auc":      test_metrics["auc"]
+            "test_auc": test_metrics["auc"]
         })
 
         # ── Log threshold ─────────────────────────────────────────────────
@@ -429,5 +428,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-    

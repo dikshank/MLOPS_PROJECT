@@ -109,10 +109,10 @@ def predict(
     try:
         with torch.no_grad():
             logits = model(tensor)
-            probs  = torch.softmax(logits, dim=1)
+            probs = torch.softmax(logits, dim=1)
 
         malignant_prob = float(probs[0][1].item())
-        benign_prob    = float(probs[0][0].item())
+        benign_prob = float(probs[0][0].item())
 
     except Exception as e:
         raise RuntimeError(f"Model inference failed: {str(e)}")
@@ -121,15 +121,15 @@ def predict(
     # Using recall-optimized threshold from training
     # Lower than 0.5 means we flag more cases as malignant → fewer missed cancers
     if malignant_prob >= threshold:
-        label      = "malignant"
+        label = "malignant"
         confidence = malignant_prob
     else:
-        label      = "benign"
+        label = "benign"
         confidence = benign_prob
 
     result = {
-        "label":          label,
-        "confidence":     round(confidence, 4),
+        "label": label,
+        "confidence": round(confidence, 4),
         "malignant_prob": round(malignant_prob, 4),
         "threshold_used": round(threshold, 4),
         "recommendation": RECOMMENDATIONS[label]

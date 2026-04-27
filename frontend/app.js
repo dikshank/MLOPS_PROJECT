@@ -9,13 +9,14 @@
  * - Displays prediction result with color coding
  * - Feedback submission via POST /feedback
  * - System status check via GET /health and GET /ready
+ * - Pipeline dashboard with live metrics
  */
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = window.API_BASE || "http://localhost:8000";
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let currentFile       = null;
-let currentPrediction = null;   // stores last prediction for feedback
+let currentPrediction = null;
 
 // ── DOM references ─────────────────────────────────────────────────────────
 const fileInput      = document.getElementById("file-input");
@@ -40,7 +41,11 @@ fileInput.addEventListener("change", (e) => {
     if (file) handleFileSelected(file);
 });
 
-dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("click", (e) => {
+    if (e.target.tagName !== "LABEL" && e.target.tagName !== "INPUT") {
+        fileInput.click();
+    }
+});
 
 dropzone.addEventListener("dragover", (e) => {
     e.preventDefault();
@@ -60,16 +65,12 @@ dropzone.addEventListener("drop", (e) => {
 
 
 function handleFileSelected(file) {
-    // Validate type
     if (!["image/jpeg", "image/png", "image/jpg"].includes(file.type)) {
         showError("Only JPEG and PNG images are supported.");
         return;
     }
-
     currentFile = file;
     hideError();
-
-    // Show preview
     const reader = new FileReader();
     reader.onload = (e) => {
         previewImg.src = e.target.result;
@@ -77,8 +78,6 @@ function handleFileSelected(file) {
         dropzoneInner.classList.add("hidden");
     };
     reader.readAsDataURL(file);
-
-    // Enable analyse button
     btnAnalyse.disabled = false;
 }
 
@@ -111,7 +110,7 @@ async function runPrediction(file) {
         }
 
         const data = await response.json();
-        currentPrediction = { ...data };  // image_id comes from server response
+        currentPrediction = { ...data };
         displayResult(data);
 
     } catch (err) {
@@ -125,30 +124,22 @@ async function runPrediction(file) {
 function displayResult(data) {
     const isMalignant = data.label === "malignant";
 
-    // ── Result header ───────────────────────────────────────────────────
     resultHeader.className = `result-header ${data.label}`;
     resultIcon.textContent  = isMalignant ? "⚠️" : "✅";
     resultLabel.textContent = isMalignant ? "Malignant Detected" : "Benign — Low Risk";
 
-    // ── Details ─────────────────────────────────────────────────────────
     document.getElementById("detail-confidence").textContent =
         `${(data.confidence * 100).toFixed(1)}%`;
-
     document.getElementById("detail-prob").textContent =
         `${(data.malignant_prob * 100).toFixed(1)}%`;
-
     document.getElementById("detail-threshold").textContent =
         data.threshold_used.toFixed(2);
-
-    // ── Recommendation ──────────────────────────────────────────────────
     document.getElementById("recommendation").textContent =
         data.recommendation;
 
-    // ── Reset feedback state ─────────────────────────────────────────────
     feedbackStatus.classList.add("hidden");
     feedbackStatus.textContent = "";
 
-    // ── Show result card ─────────────────────────────────────────────────
     resultCard.classList.remove("hidden");
     resultCard.scrollIntoView({ behavior: "smooth" });
 }
@@ -164,9 +155,9 @@ async function submitFeedback(trueLabel) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                image_id:       currentPrediction.image_id,
+                image_id:        currentPrediction.image_id,
                 predicted_label: currentPrediction.label,
-                true_label:     trueLabel
+                true_label:      trueLabel
             })
         });
 
@@ -175,7 +166,6 @@ async function submitFeedback(trueLabel) {
         feedbackStatus.textContent = "✅ Feedback recorded. Thank you!";
         feedbackStatus.classList.remove("hidden");
 
-        // Disable feedback buttons after submission
         document.querySelectorAll(".btn-feedback").forEach(btn => {
             btn.disabled = true;
             btn.style.opacity = "0.5";
@@ -202,9 +192,8 @@ function resetUI() {
     resultCard.classList.add("hidden");
     hideError();
 
-    // Re-enable feedback buttons
     document.querySelectorAll(".btn-feedback").forEach(btn => {
-        btn.disabled    = false;
+        btn.disabled      = false;
         btn.style.opacity = "1";
     });
 
@@ -215,23 +204,17 @@ function resetUI() {
 // ── System status check ────────────────────────────────────────────────────
 
 async function checkSystemStatus() {
-    const dotApi   = document.getElementById("dot-api");
-    const dotModel = document.getElementById("dot-model");
+    const dotApi           = document.getElementById("dot-api");
+    const dotModel         = document.getElementById("dot-model");
     const modelVersionText = document.getElementById("model-version-text");
 
-    // Check /health
     try {
         const res = await fetch(`${API_BASE}/health`);
-        if (res.ok) {
-            dotApi.className = "status-dot green";
-        } else {
-            dotApi.className = "status-dot red";
-        }
+        dotApi.className = res.ok ? "status-dot green" : "status-dot red";
     } catch {
         dotApi.className = "status-dot red";
     }
 
-    // Check /ready
     try {
         const res = await fetch(`${API_BASE}/ready`);
         if (res.ok) {
@@ -252,6 +235,85 @@ async function checkSystemStatus() {
     }
 }
 
+
+// ── Tab navigation ─────────────────────────────────────────────────────────
+
+function showTab(tab) {
+    document.getElementById("tab-screening").classList.add("hidden");
+    document.getElementById("tab-pipeline").classList.add("hidden");
+    document.getElementById("tab-" + tab).classList.remove("hidden");
+
+    document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.remove("active"));
+    event.target.classList.add("active");
+
+    if (tab === "pipeline") {
+        fetchPipelineMetrics();
+    }
+}
+
+
+// ── Pipeline dashboard metrics ─────────────────────────────────────────────
+
+async function fetchPipelineMetrics() {
+    try {
+        const res = await fetch(`${API_BASE}/metrics`);
+        if (!res.ok) return;
+        const text = await res.text();
+
+        const get = (name) => {
+            const lines = text.split("\n").filter(l => l.startsWith(name) && !l.startsWith("#"));
+            if (!lines.length) return null;
+            return lines.reduce((sum, l) => {
+                const val = parseFloat(l.split(" ").pop());
+                return sum + (isNaN(val) ? 0 : val);
+            }, 0);
+        };
+
+        const requests    = get("melanoma_request_total");
+        const predictions = get("melanoma_prediction_total");
+        const feedback    = get("melanoma_feedback_total");
+        const drift       = get("melanoma_drift_score");
+        const recall      = get("melanoma_real_world_recall");
+        const misclass    = get("melanoma_misclassification_rate");
+
+        document.getElementById("m-requests").textContent    = requests    != null ? Math.round(requests)              : "—";
+        document.getElementById("m-predictions").textContent = predictions != null ? Math.round(predictions)           : "—";
+        document.getElementById("m-feedback").textContent    = feedback    != null ? Math.round(feedback)              : "—";
+        document.getElementById("m-drift").textContent       = drift       != null ? drift.toFixed(3)                  : "—";
+        document.getElementById("m-recall").textContent      = recall      != null ? (recall * 100).toFixed(1) + "%"   : "—";
+        document.getElementById("m-misclass").textContent    = misclass    != null ? (misclass * 100).toFixed(1) + "%" : "—";
+
+        if (drift != null) {
+            const pct = Math.min(drift * 100, 100);
+            document.getElementById("drift-bar-fill").style.width = pct + "%";
+            document.getElementById("drift-bar-pct").textContent  = pct.toFixed(1) + "%";
+            document.getElementById("drift-bar-fill").classList.toggle("warn", drift > 0.20);
+        }
+
+    } catch (e) {
+        console.error("Failed to fetch pipeline metrics:", e);
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/ready`);
+        if (res.ok) {
+            const data = await res.json();
+            document.getElementById("pi-model-name").textContent    = data.model_name    || "—";
+            document.getElementById("pi-model-version").textContent = data.model_version || "—";
+            document.getElementById("pi-status").textContent        = data.status        || "—";
+        }
+    } catch (e) {}
+}
+
+// Auto-refresh pipeline metrics every 15s when on dashboard tab
+setInterval(() => {
+    const pipelineTab = document.getElementById("tab-pipeline");
+    if (pipelineTab && !pipelineTab.classList.contains("hidden")) {
+        fetchPipelineMetrics();
+    }
+}, 15000);
+
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function showSpinner() { spinner.classList.remove("hidden"); }
@@ -266,6 +328,5 @@ function hideError() { errorBanner.classList.add("hidden"); }
 
 // ── Init ───────────────────────────────────────────────────────────────────
 
-// Check status on load and every 30 seconds
 checkSystemStatus();
 setInterval(checkSystemStatus, 30000);

@@ -177,8 +177,8 @@ def validate_processed_output(
         errors.append(f"Check 1 FAILED: Processed folder does not exist: {processed_data_dir}")
     else:
         all_files = list(processed_data_dir.rglob("*.jpg")) + \
-                    list(processed_data_dir.rglob("*.jpeg")) + \
-                    list(processed_data_dir.rglob("*.png"))
+            list(processed_data_dir.rglob("*.jpeg")) + \
+            list(processed_data_dir.rglob("*.png"))
         if len(all_files) == 0:
             errors.append("Check 1 FAILED: Processed folder is empty.")
         else:
@@ -214,8 +214,8 @@ def validate_processed_output(
         if not split_dir.exists():
             continue
         actual_count = len(list(split_dir.rglob("*.jpg"))) + \
-                       len(list(split_dir.rglob("*.jpeg"))) + \
-                       len(list(split_dir.rglob("*.png")))
+            len(list(split_dir.rglob("*.jpeg"))) + \
+            len(list(split_dir.rglob("*.png")))
         expected_count = summaries.get(split, {}).get("processed", 0)
         if actual_count != expected_count:
             count_errors.append(

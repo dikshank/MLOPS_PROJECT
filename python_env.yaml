@@ -7,6 +7,9 @@
 #
 # Actual versions verified on: Windows 11, Python 3.14.3
 # Hardware: Intel UHD 620 (CPU only, no CUDA)
+#
+# Note: These are local training dependencies.
+#       Backend serving uses requirements.txt (Python 3.10 Docker)
 # ============================================================
 
 python: "3.14"
@@ -30,10 +33,12 @@ dependencies:
 
   # ── Config and utilities ──────────────────────────────────────────────
   - pyyaml==6.0.3
+  - tqdm
 
   # ── Serving dependencies (for local testing outside Docker) ───────────
-  - fastapi==0.135.3
+  - fastapi
   - uvicorn
   - prometheus-client
   - python-multipart
   - httpx
+  - requests

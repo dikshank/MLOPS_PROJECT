@@ -23,7 +23,6 @@ import io
 import os
 import time
 import json
-import uuid
 import hashlib
 import numpy as np
 from pathlib import Path
@@ -59,8 +58,7 @@ from monitoring import (
     MISCLASSIFICATION_RATE,
     DRIFT_SCORE,
     DRIFT_DETECTED,
-    RETRAINING_TRIGGERED,
-    MODEL_LOAD_STATUS
+    RETRAINING_TRIGGERED
 )
 
 logger = get_logger("main")
@@ -79,18 +77,18 @@ MIN_FEEDBACK_FOR_TRIGGER = int(
 )
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-LOGS_DIR             = Path("logs")
-FEEDBACK_LOG_PATH    = LOGS_DIR / "feedback.jsonl"
+LOGS_DIR = Path("logs")
+FEEDBACK_LOG_PATH = LOGS_DIR / "feedback.jsonl"
 RETRAINING_FLAG_PATH = LOGS_DIR / "retrain_needed.flag"
 
 # Images saved at predict time — keyed by image_id
 PENDING_FEEDBACK_DIR = LOGS_DIR / "pending_feedback"
 
 # Images confirmed via feedback — organised by true label for retraining
-FEEDBACK_DATA_DIR    = LOGS_DIR / "feedback_data"
+FEEDBACK_DATA_DIR = LOGS_DIR / "feedback_data"
 
 # Baseline stats from Airflow pipeline — used for drift detection
-BASELINE_STATS_PATH  = Path(
+BASELINE_STATS_PATH = Path(
     os.environ.get("BASELINE_STATS_PATH", "data/baseline_stats/v1_stats.json")
 )
 
@@ -125,7 +123,7 @@ def _load_baseline_histogram() -> list:
         with open(BASELINE_STATS_PATH) as f:
             stats = json.load(f)
         counts = stats["pixel_histogram"]["counts"]
-        total  = sum(counts)
+        total = sum(counts)
         # Normalise to proportions
         normalised = [c / total for c in counts] if total > 0 else counts
         logger.info("Baseline histogram loaded (%d bins)", len(normalised))
@@ -147,8 +145,8 @@ def _compute_image_histogram(image_bytes: bytes, n_bins: int = 10) -> list:
         list: Normalised histogram counts.
     """
     try:
-        img   = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        arr   = np.array(img, dtype=np.float32) / 255.0
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        arr = np.array(img, dtype=np.float32) / 255.0
         counts, _ = np.histogram(arr.flatten(), bins=n_bins, range=(0.0, 1.0))
         total = sum(counts)
         return [c / total for c in counts] if total > 0 else list(counts)
@@ -171,8 +169,8 @@ def _compute_drift_score(image_histogram: list) -> float:
         return 0.0
 
     min_len = min(len(_baseline_histogram), len(image_histogram))
-    diff    = [abs(_baseline_histogram[i] - image_histogram[i])
-               for i in range(min_len)]
+    diff = [abs(_baseline_histogram[i] - image_histogram[i])
+            for i in range(min_len)]
     return float(np.mean(diff))
 
 
@@ -185,7 +183,7 @@ def _check_and_flag_retraining(reason: str) -> None:
         reason (str): 'misclassification' or 'drift'
     """
     flag_content = {
-        "reason":    reason,
+        "reason": reason,
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "feedback_counts": _feedback_counts.copy()
     }
@@ -279,7 +277,7 @@ async def predict_endpoint(file: UploadFile = File(...)):
         # ── Generate unique image_id ──────────────────────────────────────
         # Use hash of image bytes + timestamp for uniqueness
         image_hash = hashlib.md5(image_bytes).hexdigest()[:8]
-        image_id   = f"img_{image_hash}_{int(time.time())}.jpg"
+        image_id = f"img_{image_hash}_{int(time.time())}.jpg"
 
         # ── Save image for potential retraining use ───────────────────────
         pending_path = PENDING_FEEDBACK_DIR / image_id
@@ -288,7 +286,7 @@ async def predict_endpoint(file: UploadFile = File(...)):
         os.chmod(pending_path, 0o777)  # allow Airflow container to delete
 
         # ── Run inference ─────────────────────────────────────────────────
-        meta   = get_model_meta()
+        meta = get_model_meta()
         result = predict(
             model=model,
             image_bytes=image_bytes,
@@ -296,8 +294,8 @@ async def predict_endpoint(file: UploadFile = File(...)):
         )
 
         # ── Drift detection ───────────────────────────────────────────────
-        img_histogram  = _compute_image_histogram(image_bytes)
-        drift          = _compute_drift_score(img_histogram)
+        img_histogram = _compute_image_histogram(image_bytes)
+        drift = _compute_drift_score(img_histogram)
         DRIFT_SCORE.set(drift)
 
         if drift > DRIFT_THRESHOLD:
@@ -364,7 +362,7 @@ async def ready():
         logger.info("Model auto-reloaded at /ready check")
 
     model = get_model()
-    meta  = get_model_meta()
+    meta = get_model_meta()
 
     REQUEST_COUNT.labels(endpoint="/ready", method="GET", status_code="200").inc()
 
@@ -407,12 +405,11 @@ async def feedback(request: FeedbackRequest):
     - Updates misclassification rate
     - Triggers retraining flag if rate exceeds threshold
     """
-    global _feedback_counts
 
     try:
         predicted = request.predicted_label.lower()
-        actual    = request.true_label.lower()
-        image_id  = request.image_id
+        actual = request.true_label.lower()
+        image_id = request.image_id
 
         valid_labels = {"malignant", "benign"}
         if predicted not in valid_labels or actual not in valid_labels:
@@ -422,7 +419,7 @@ async def feedback(request: FeedbackRequest):
             )
 
         # ── Move image from pending to feedback_data ───────────────────────
-        pending_path  = PENDING_FEEDBACK_DIR / image_id
+        pending_path = PENDING_FEEDBACK_DIR / image_id
         feedback_path = FEEDBACK_DATA_DIR / actual / image_id
 
         if pending_path.exists():
@@ -483,12 +480,12 @@ async def feedback(request: FeedbackRequest):
 
         # ── Log to JSONL ──────────────────────────────────────────────────
         log_entry = {
-            "image_id":        image_id,
+            "image_id": image_id,
             "predicted_label": predicted,
-            "true_label":      actual,
-            "image_saved_to":  str(feedback_path) if pending_path.exists() else None,
+            "true_label": actual,
+            "image_saved_to": str(feedback_path) if pending_path.exists() else None,
             "feedback_counts": _feedback_counts.copy(),
-            "total_feedback":  total_feedback
+            "total_feedback": total_feedback
         }
         with open(FEEDBACK_LOG_PATH, "a") as f:
             f.write(json.dumps(log_entry) + "\n")
