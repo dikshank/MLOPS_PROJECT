@@ -53,6 +53,7 @@ subclassing. These are standard library conventions, not design choices.
            ▼
 ┌─────────────────────┐        ┌──────────────────────────────┐
 │  Prometheus (9090)  │───────►│  Grafana Dashboard (3000)    │
+│                     │        │  13 panels + 3 alert rules   │
 └─────────────────────┘        └──────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
@@ -181,7 +182,7 @@ Airflow Retraining DAG (auto every 30 mins):
 | Model architectures | MobileNetV3-Small, EfficientNet-B0, SimpleCNN | Pretrained vs from-scratch comparison; CPU-deployable |
 | Data pipeline | Apache Airflow | Visual DAG, error tracking, task-level logging |
 | Experiment tracking | MLflow (local) | No cloud dependency, full registry + artifact support |
-| Data versioning | DVC + local remote | Reproducible data lineage, on-premise constraint |
+| Data versioning | DVC + Git LFS | Reproducible data lineage, images on GitHub via LFS |
 | Serving | FastAPI | Async, automatic OpenAPI docs, Prometheus-compatible |
 | Monitoring | Prometheus + Grafana | Industry standard, NRT dashboards, alert support |
 | Containerisation | Docker + docker-compose | Environment parity, 5 services on shared network |
@@ -201,3 +202,4 @@ Airflow Retraining DAG (auto every 30 mins):
 | Model loaded at startup | Production model auto-loaded |
 | Drift detection | Operational (threshold 20%) |
 | Retraining trigger | Operational (threshold 10% misclassification) |
+| Grafana alerts | 3 rules: error >5%, drift detected, misclass >10% |

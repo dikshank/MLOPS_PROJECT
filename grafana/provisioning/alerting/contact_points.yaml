@@ -1,0 +1,18 @@
+# ============================================================
+# contact_points.yaml
+# Grafana Contact Points — provisioned
+# Using default "grafana-default-email" but alerts visible
+# in Grafana UI under Alerting → Alert rules
+# ============================================================
+
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: melanoma-alerts
+    receivers:
+      - uid: melanoma_receiver
+        type: email
+        settings:
+          addresses: admin@melanoma.local
+        disableResolveMessage: false

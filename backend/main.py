@@ -371,6 +371,7 @@ async def ready():
             model_loaded=False,
             model_name=None,
             model_version=None,
+            classification_threshold=None,
             status="not_ready"
         )
 
@@ -378,6 +379,7 @@ async def ready():
         model_loaded=True,
         model_name=meta.get("name"),
         model_version=meta.get("version"),
+        classification_threshold=meta.get("threshold") ,
         status="ready"
     )
 

@@ -300,6 +300,7 @@ async function fetchPipelineMetrics() {
             const data = await res.json();
             document.getElementById("pi-model-name").textContent    = data.model_name    || "—";
             document.getElementById("pi-model-version").textContent = data.model_version || "—";
+            document.getElementById("pi-threshold").textContent     = data.classification_threshold ? data.classification_threshold.toFixed(2) : "—";
             document.getElementById("pi-status").textContent        = data.status        || "—";
         }
     } catch (e) {}

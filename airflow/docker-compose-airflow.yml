@@ -40,7 +40,7 @@ x-airflow-common: &airflow-common
     - ../data:/opt/airflow/data
     - ../logs:/opt/airflow/app_logs
     - ../training:/opt/airflow/training
-
+    - ../mlruns:/opt/airflow/mlruns
 services:
 
   airflow-init:

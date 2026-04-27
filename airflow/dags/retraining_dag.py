@@ -49,13 +49,36 @@ FEEDBACK_DATA_DIR   = Path("/opt/airflow/app_logs/feedback_data")
 PROCESSED_DATA_DIR  = Path("/opt/airflow/data/processed/v1")
 TRAINING_SCRIPT     = Path("/opt/airflow/training/src/train.py")
 
-# All 3 model configs — retraining runs all models, champion/challenger picks best
-TRAINING_CONFIGS = [
-    Path("/opt/airflow/training/configs/config_v1_mobilenet.yaml"),
-    Path("/opt/airflow/training/configs/config_v1_efficientnet.yaml"),
-    Path("/opt/airflow/training/configs/config_v1_simplecnn.yaml"),
-]
+def get_production_config() -> list:
+    """Get training config for the current Production model."""
+    import mlflow
+    mlflow.set_tracking_uri("/opt/airflow/mlruns")
+    client = mlflow.tracking.MlflowClient()
 
+    try:
+        versions = client.get_latest_versions("melanoma_classifier", stages=["Production"])
+        if not versions:
+            logger.warning("No Production model found. Defaulting to mobilenet.")
+            return [Path("/opt/airflow/training/configs/config_v1_mobilenet.yaml")]
+
+        run = client.get_run(versions[0].run_id)
+        model_name = run.data.tags.get("model_name", "mobilenet_v3_small")
+
+        config_map = {
+            "mobilenet_v3_small": "config_v1_mobilenet.yaml",
+            "efficientnet_b0":    "config_v1_efficientnet.yaml",
+            "simplecnn":          "config_v1_simplecnn.yaml",
+            "simple_cnn":         "config_v1_simplecnn.yaml",
+        }
+
+        config_file = config_map.get(model_name, "config_v1_mobilenet.yaml")
+        config_path = Path(f"/opt/airflow/training/configs/{config_file}")
+        logger.info("Production model: %s → config: %s", model_name, config_file)
+        return [config_path]
+
+    except Exception as e:
+        logger.warning("Could not fetch production model: %s. Defaulting to mobilenet.", e)
+        return [Path("/opt/airflow/training/configs/config_v1_mobilenet.yaml")]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Task 1: Check trigger conditions
@@ -193,7 +216,7 @@ def trigger_training(**context) -> None:
             f"Training script not found: {TRAINING_SCRIPT}"
         )
 
-    for config in TRAINING_CONFIGS:
+    for config in get_production_config():
         if not config.exists():
             raise FileNotFoundError(
                 f"Training config not found: {config}"

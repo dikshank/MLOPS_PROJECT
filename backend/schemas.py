@@ -53,19 +53,19 @@ class ReadyResponse(BaseModel):
     Response schema for GET /ready endpoint.
 
     Attributes:
-        model_loaded  : Whether the model has been loaded successfully
-        model_name    : Name of the loaded model architecture
-        model_version : MLflow registry version of the loaded model
-        status        : 'ready' if model is loaded, 'not_ready' otherwise
+        model_loaded            : Whether the model has been loaded successfully
+        model_name              : Name of the loaded model architecture
+        model_version           : MLflow registry version of the loaded model
+        classification_threshold: Threshold used for malignant classification
+        status                  : 'ready' if model is loaded, 'not_ready' otherwise
     """
     model_config = ConfigDict(protected_namespaces=())
 
     model_loaded: bool = Field(..., example=True)
     model_name: Optional[str] = Field(None, example="mobilenet_v3_small")
     model_version: Optional[str] = Field(None, example="3")
+    classification_threshold: Optional[float] = Field(None, example=0.35)
     status: str = Field(..., example="ready")
-
-
 class FeedbackRequest(BaseModel):
     """
     Request schema for POST /feedback endpoint.

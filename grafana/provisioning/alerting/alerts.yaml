@@ -1,0 +1,173 @@
+# ============================================================
+# alerts.yaml
+# Grafana Alerting — Provisioned Alert Rules
+#
+# Auto-configured when Grafana starts.
+# Two alert rules as required by guidelines:
+#   1. Error rate exceeds 5%
+#   2. Data drift detected
+# ============================================================
+
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: melanoma_alerts
+    folder: MelanoCheck
+    interval: 1m
+    rules:
+
+      # ── Alert 1: High Error Rate ──────────────────────────────────────
+      - uid: melanoma_error_rate_alert
+        title: High Error Rate (>5%)
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: >
+                sum(rate(melanoma_error_total[5m])) /
+                sum(rate(melanoma_request_total[5m])) * 100
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 5
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is above 5% — check backend logs"
+        labels:
+          severity: critical
+        isPaused: false
+
+      # ── Alert 2: Data Drift Detected ──────────────────────────────────
+      - uid: melanoma_drift_alert
+        title: Data Drift Detected
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: melanoma_drift_detected
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1
+                    type: gte
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 1m
+        annotations:
+          summary: "Data drift detected"
+          description: "Drift score exceeds 20% threshold — retraining may be needed"
+        labels:
+          severity: warning
+        isPaused: false
+
+      # ── Alert 3: Misclassification Rate High ──────────────────────────
+      - uid: melanoma_misclass_alert
+        title: High Misclassification Rate (>10%)
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: melanoma_misclassification_rate * 100
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 10
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: "High misclassification rate"
+          description: "Misclassification rate exceeds 10% — retraining triggered"
+        labels:
+          severity: warning
+        isPaused: false

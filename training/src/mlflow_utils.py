@@ -59,32 +59,56 @@ def get_git_commit_hash() -> str:
         return "unknown"
 
 
+# def setup_mlflow(config: dict) -> None:
+#     """
+#     Configure MLflow tracking URI and experiment.
+
+#     Uses local mlruns/ folder for all tracking.
+#     Creates the experiment if it does not exist.
+
+#     Args:
+#         config (dict): Parsed training config YAML.
+#     """
+#     # ── Set local tracking URI ────────────────────────────────────────────
+#     mlruns_path = Path(config["mlflow"]["tracking_uri"])
+#     mlruns_path.mkdir(parents=True, exist_ok=True)
+
+#     mlflow.set_tracking_uri(str(mlruns_path))
+
+#     # ── Set experiment ────────────────────────────────────────────────────
+#     experiment_name = config["mlflow"]["experiment_name"]
+#     mlflow.set_experiment(experiment_name)
+
+#     logger.info(
+#         "MLflow configured | tracking_uri=%s | experiment=%s",
+#         mlruns_path, experiment_name
+#     )
+
 def setup_mlflow(config: dict) -> None:
-    """
-    Configure MLflow tracking URI and experiment.
+    import os
 
-    Uses local mlruns/ folder for all tracking.
-    Creates the experiment if it does not exist.
+    if os.environ.get("MLFLOW_RUN_ID"):
+        # Running via mlflow run — only ensure experiment exists, touch nothing else
+        client = mlflow.tracking.MlflowClient()
+        experiment_name = config["mlflow"]["experiment_name"]
+        if not client.get_experiment_by_name(experiment_name):
+            client.create_experiment(experiment_name)
+        logger.info("MLflow run detected — experiment ensured: %s", experiment_name)
+        return
 
-    Args:
-        config (dict): Parsed training config YAML.
-    """
-    # ── Set local tracking URI ────────────────────────────────────────────
+    # Running via python train.py directly
     mlruns_path = Path(config["mlflow"]["tracking_uri"])
     mlruns_path.mkdir(parents=True, exist_ok=True)
-
     mlflow.set_tracking_uri(str(mlruns_path))
 
-    # ── Set experiment ────────────────────────────────────────────────────
     experiment_name = config["mlflow"]["experiment_name"]
     mlflow.set_experiment(experiment_name)
 
     logger.info(
         "MLflow configured | tracking_uri=%s | experiment=%s",
-        mlruns_path, experiment_name
+        mlflow.get_tracking_uri(), experiment_name
     )
-
-
+    
 def log_config_params(config: dict) -> None:
     """
     Log all training configuration parameters to MLflow.
@@ -374,7 +398,15 @@ def log_model(
         new_val_recall (float): Best val_recall achieved in this training run.
         new_val_f1 (float): Best val_f1 achieved in this training run.
     """
-    RECALL_TOLERANCE = 0.02   # recalls within 2% are considered tied
+        # ── Sanity check: reject degenerate models ────────────────────────────
+    if new_val_f1 < 0.1:
+        logger.warning(
+            "Model has near-zero F1 (%.4f) — likely predicting single class. "
+            "Skipping registration and promotion.", new_val_f1
+        )
+        return
+        
+    RECALL_TOLERANCE = 0.04   # recalls within 4% are considered tied
     # ── Log raw .pth as artifact in this run ──────────────────────────────
     mlflow.log_artifact(str(best_checkpoint_path), artifact_path="model")
     logger.info(".pth checkpoint logged as artifact")

@@ -330,9 +330,20 @@ def run(config: dict) -> None:
     Args:
         config (dict): Parsed pipeline config YAML as a dictionary.
     """
+
+    # Clear existing processed images before writing fresh ones
+    # Prevents stale/feedback images from accumulating
+    import shutil
     try:
         manifest_dir = Path(config["paths"]["split_manifest_dir"])
         processed_data_dir = Path(config["paths"]["processed_data_dir"])
+
+        # Clear existing processed images before writing fresh ones
+        for split in ['train', 'val', 'test']:
+            split_dir = processed_data_dir / split
+            if split_dir.exists():
+                shutil.rmtree(split_dir)
+                split_dir.mkdir(parents=True)
         target_size = tuple(config["preprocessing"]["target_size"])
         convert_to_rgb = config["preprocessing"]["convert_to_rgb"]
         classes = config["classes"]

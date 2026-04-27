@@ -6,20 +6,20 @@ Built for resource-constrained, on-premise environments (CPU only, no cloud).
 ## Architecture
 
 ```
-Raw Data (32x32 images)
+Raw Data (32x32 images, DVC tracked)
         ↓
 [Airflow] Data Pipeline DAG
   validate → split → preprocess (upscale to 64x64) → baseline_stats
         ↓
 [MLflow] Training (3 models)
-  MobileNetV3-Small | EfficientNet-B0 | SimpleCNN
-  Champion/Challenger auto-promotion (recall → F1 tiebreaker)
+  MobileNetV3-Small | EfficientNet-B0 | SimpleCNN (from scratch)
+  Champion/Challenger auto-promotion (recall primary → F1 tiebreaker)
         ↓
 [FastAPI] Serving
-  POST /predict | POST /feedback | GET /metrics
+  POST /predict | POST /feedback | GET /metrics | GET /health | GET /ready
         ↓
-[Prometheus + Grafana] Monitoring
-  Drift score | Misclassification rate | Real-world recall
+[Prometheus + Grafana] Monitoring (13 panels + 3 alert rules)
+  Drift score | Misclassification rate | Real-world recall | Alerting
         ↓
 [Airflow] Retraining DAG (auto every 30 mins)
   Triggered by misclassification > 10% or drift > 20%
@@ -32,13 +32,13 @@ Raw Data (32x32 images)
 | Data pipeline | Apache Airflow 2.8.1 (SequentialExecutor + SQLite) |
 | ML framework | PyTorch 2.x (CPU only) |
 | Models | MobileNetV3-Small, EfficientNet-B0, SimpleCNN (from scratch) |
-| Experiment tracking | MLflow 3.x |
-| Data versioning | DVC + Google Drive |
+| Experiment tracking | MLflow (local mlruns/) |
+| Data versioning | DVC + local remote |
 | Serving | FastAPI + nginx |
-| Monitoring | Prometheus + Grafana |
-| Containerisation | Docker + Docker Compose |
-| CI | GitHub Actions + dvc.yaml |
-| Testing | pytest (46 tests) |
+| Monitoring | Prometheus + Grafana (13 panels, 3 alert rules) |
+| Containerisation | Docker + Docker Compose (5 services) |
+| CI | GitHub Actions + dvc.yaml DAG |
+| Testing | pytest (68 tests, 100% pass rate) |
 
 ## Prerequisites
 
@@ -57,15 +57,24 @@ cd mlops_project
 pip install -r requirements.txt
 ```
 
-### Step 1 — Get the data (DVC)
+### Step 1 — Get the data
+
+Raw images are tracked via Git LFS — pulled automatically on clone:
 
 ```bash
-# Pull data from Google Drive remote
-dvc pull
+git lfs pull
+```
 
-# Data will appear at:
-# data/raw/v1/malignant/  ← 32x32 malignant images
-# data/raw/v1/benign/     ← 32x32 benign images
+Alternatively via DVC local remote:
+```bash
+dvc remote modify local_remote url /path/to/mlops_dvc_remote     # This won't work for as it is a local registry
+dvc pull
+```
+
+Data will appear at:
+```
+data/raw/malignant/   ← 32x32 malignant images
+data/raw/benign/      ← 32x32 benign images
 ```
 
 ### Step 2 — Create Docker network
@@ -77,8 +86,9 @@ docker network create mlops_network
 ### Step 3 — Start Airflow and run data pipeline
 
 ```bash
-# Build Airflow image (first time only — installs torch, ~5 mins)
 cd airflow
+
+# Build Airflow image (first time only — installs torch, ~5-10 mins)
 docker compose -f docker-compose-airflow.yml build
 
 # Initialise Airflow database
@@ -87,32 +97,48 @@ docker compose -f docker-compose-airflow.yml up airflow-init
 
 # Start Airflow
 docker compose -f docker-compose-airflow.yml up airflow-webserver airflow-scheduler
+cd ..
 ```
 
 Open `http://localhost:8080` (admin / admin)
 
-Trigger **melanoma_data_pipeline** DAG manually. Wait for all 4 tasks to turn green:
+Trigger **melanoma_data_pipeline** DAG manually. Wait for all 4 tasks green:
 ```
 validate_images → split_data → preprocess_images → compute_baseline_stats
 ```
 
 This produces:
 ```
-data/processed/v1/train/    ← 164 training images (64x64)
-data/processed/v1/val/      ← 36 validation images
-data/processed/v1/test/     ← 600 test images
-data/baseline_stats/v1_stats.json
+data/processed/v1/train/          ← 164 training images (64x64)
+data/processed/v1/val/            ← 36 validation images
+data/processed/v1/test/           ← 600 test images
+data/baseline_stats/v1_stats.json ← pixel histogram for drift detection
 ```
 
 ### Step 4 — Train models
 
-```bash
-cd ..  # back to project root
+#### Prerequisites for Windows (one-time setup) (FIRST TRY THE MLFLOW RUN COMMANDS IF THEY DON"T WORK THEN DO THIS SETUP OR OTHERWISE JUST TRAIN DIRECTLY)
 
+```powershell
+# 1. Allow scripts (run PowerShell as Administrator)
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# 2. Install pyenv-win (restart PowerShell after this)
+Invoke-WebRequest -UseBasicParsing -Uri "https://raw.githubusercontent.com/pyenv-win/pyenv-win/master/pyenv-win/install-pyenv-win.ps1" -OutFile "./install-pyenv-win.ps1"; &"./install-pyenv-win.ps1"
+
+# 3. After restarting PowerShell, set PYENV_ROOT permanently
+[System.Environment]::SetEnvironmentVariable("PYENV_ROOT", "$env:USERPROFILE\.pyenv\pyenv-win", "User")
+[System.Environment]::SetEnvironmentVariable("PATH", "$env:USERPROFILE\.pyenv\pyenv-win\bin;$env:USERPROFILE\.pyenv\pyenv-win\shims;" + [System.Environment]::GetEnvironmentVariable("PATH", "User"), "User")
+
+# 4. Restart PowerShell again, then verify
+pyenv --version
+```
+
+```bash
 # Option A: Using MLflow Projects (recommended for reproducibility)
-mlflow run . -P config=training/configs/config_v1_mobilenet.yaml
-mlflow run . -e train_efficientnet
-mlflow run . -e train_simplecnn
+mlflow run . --experiment-name baseline-v1 -P config=training/configs/config_v1_mobilenet.yaml
+mlflow run . --experiment-name baseline-v1 -e train_efficientnet
+mlflow run . --experiment-name baseline-v1 -e train_simplecnn
 
 # Option B: Direct (faster)
 python training/src/train.py --config training/configs/config_v1_mobilenet.yaml
@@ -121,11 +147,11 @@ python training/src/train.py --config training/configs/config_v1_simplecnn.yaml
 ```
 
 Champion/Challenger auto-promotion:
-- **Stage 1**: New recall > current recall → promote
-- **Stage 2**: Recalls tied → compare F1, promote if better
-- Best model goes to **Production** in MLflow registry
+- Stage 1: New recall > current recall + 0.02 → promote
+- Stage 2: Recalls tied → compare F1, promote if better
+- Best model goes to Production in MLflow registry
 
-View experiments at `http://localhost:5000` (run MLflow locally):
+View experiments:
 ```bash
 mlflow ui --backend-store-uri mlruns --port 5000
 ```
@@ -133,32 +159,30 @@ mlflow ui --backend-store-uri mlruns --port 5000
 ### Step 5 — Start all services
 
 ```bash
+docker network create mlops_network
 docker compose up --build
 ```
 
-Services:
-| Service | URL |
-|---------|-----|
-| Frontend | http://localhost:80 |
-| Backend API | http://localhost:8000/docs |
-| MLflow UI | http://localhost:5000 |
-| Prometheus | http://localhost:9090 |
-| Grafana | http://localhost:3000 (admin/admin) |
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| Frontend | http://localhost:80 | — |
+| Backend API | http://localhost:8000/docs | — |
+| MLflow UI | http://localhost:5000 | — |
+| Prometheus | http://localhost:9090 | — |
+| Grafana | http://localhost:3000 | admin/admin |
+| Airflow | http://localhost:8080 | admin/admin |
 
 ### Step 6 — Run tests
 
 ```bash
 pytest tests/ -v
-# Expected: 46/46 passed
+# Expected: 68/68 passed
 ```
 
 ### Step 7 — Batch prediction (optional demo)
 
 ```bash
-python scripts/batch_predict.py \
-    --malignant path/to/malignant/images \
-    --benign path/to/benign/images \
-    --count 100
+python scripts/batch_predict.py --malignant path/to/malignant --benign path/to/benign --count 100
 ```
 
 This sends 100 images per class to `/predict` + `/feedback`.
@@ -168,18 +192,14 @@ Check Grafana for updated metrics.
 
 The retraining DAG runs automatically every 30 minutes.
 It triggers when:
-- Misclassification rate > 10% (after ≥10 feedback submissions)
+- Misclassification rate > 10% (after >= 10 feedback submissions)
 - Drift score > 20%
 
 To trigger manually: Airflow UI → **melanoma_retraining_pipeline** → Trigger DAG
 
-Pipeline:
 ```
 check_trigger → prepare_feedback_data → trigger_training → evaluate_new_model → cleanup
 ```
-
-Feedback images are merged into training data, all 3 models retrained,
-best model auto-promoted to Production.
 
 ---
 
@@ -188,33 +208,60 @@ best model auto-promoted to Production.
 ```
 mlops_project/
 ├── airflow/
-│   ├── Dockerfile                      ← Custom Airflow image with torch
+│   ├── Dockerfile                      ← Custom Airflow image with torch pre-installed
 │   ├── docker-compose-airflow.yml
 │   ├── dags/
 │   │   ├── data_pipeline_dag.py        ← 4-task data pipeline
-│   │   └── retraining_dag.py           ← 5-task retraining pipeline
+│   │   └── retraining_dag.py           ← 5-task auto-retraining pipeline
 │   ├── scripts/                        ← validate, split, preprocess, baseline_stats
 │   └── configs/pipeline_config_v1.yaml
 ├── training/
 │   ├── src/                            ← dataset, model, train, evaluate, mlflow_utils
 │   └── configs/                        ← config_v1_mobilenet/efficientnet/simplecnn
 ├── backend/
-│   ├── main.py                         ← FastAPI app
+│   ├── main.py                         ← FastAPI app + drift detection
 │   ├── model_loader.py                 ← MLflow registry integration
+│   ├── model.py                        ← model architecture definitions
 │   ├── predictor.py                    ← inference logic
-│   ├── monitoring.py                   ← Prometheus metrics
-│   └── schemas.py                      ← Pydantic schemas
-├── frontend/                           ← nginx + HTML/CSS/JS
-├── prometheus/prometheus.yml
-├── grafana/provisioning/               ← dashboards + datasources
-├── tests/                              ← 46 pytest tests
-├── scripts/batch_predict.py            ← batch prediction + feedback
-├── docs/                               ← HLD, LLD, test plan, test report
-├── docker-compose.yml                  ← 5 services on mlops_network
-├── MLproject                           ← MLflow reproducibility
-├── python_env.yaml                     ← training environment spec
-├── dvc.yaml                            ← data pipeline DAG
-└── requirements.txt                    ← project dependencies
+│   ├── monitoring.py                   ← Prometheus metrics (15 metrics)
+│   ├── schemas.py                      ← Pydantic request/response schemas
+│   ├── logger.py                       ← structured logging
+│   ├── requirements.txt                ← backend Docker dependencies
+│   └── Dockerfile
+├── frontend/
+│   ├── index.html                      ← Screening + Pipeline Dashboard tabs
+│   ├── style.css                       ← colorblind-friendly styles
+│   ├── app.js                          ← configurable API_BASE
+│   └── Dockerfile
+├── prometheus/
+│   └── prometheus.yml
+├── grafana/
+│   └── provisioning/
+│       ├── dashboards/melanoma.json    ← 13-panel NRT dashboard
+│       ├── datasources/               ← Prometheus datasource
+│       └── alerting/                  ← 3 provisioned alert rules
+├── tests/
+│   ├── conftest.py
+│   ├── test_predict.py                 ← 15 tests
+│   ├── test_health.py                  ← 17 tests
+│   ├── test_feedback.py                ← 14 tests
+│   └── test_pipeline.py               ← 22 tests
+├── scripts/
+│   └── batch_predict.py               ← batch prediction + feedback script
+├── docs/
+│   ├── HLD.md                         ← high-level design
+│   ├── LLD.md                         ← API endpoint specifications
+│   ├── architecture.html              ← diagram + block explanations
+│   ├── test_plan.md                   ← test plan + acceptance criteria
+│   ├── test_report.md                 ← 68/68 passing test report
+│   └── user_manual.md                 ← non-technical user guide
+├── .github/workflows/ci.yml           ← GitHub Actions CI
+├── docker-compose.yml                 ← 5 services on mlops_network
+├── MLproject                          ← MLflow reproducibility
+├── python_env.yaml                    ← training environment spec
+├── dvc.yaml                           ← 5-stage CI pipeline DAG
+├── .dvcignore
+└── requirements.txt                   ← project dependencies
 ```
 
 ## Key Design Decisions
@@ -223,23 +270,39 @@ mlops_project/
 |----------|-----------|
 | SequentialExecutor + SQLite | No extra containers needed for Airflow |
 | CPU only | On-premise constraint, Intel UHD 620 |
-| 32x32 → 64x64 upscaling | v1 baseline proves resolution is bottleneck; models ready for v2 (224x224 → 64x64) without config changes |
+| 32x32 → 64x64 upscaling | Proves resolution is bottleneck; models ready for v2 without config changes |
 | 3 model architectures | Pretrained (MobileNet, EfficientNet) vs from-scratch (SimpleCNN) comparison |
 | Recall as primary metric | Missing cancer (FN) is worse than false alarm (FP) |
 | F1 as tiebreaker | When recall is tied, pick more balanced model |
-| No conda/venv | Docker isolation is sufficient |
-| Functional programming | Throughout pipeline scripts |
+| Local DVC remote | On-premise constraint — no cloud allowed |
+| Functional programming | Throughout all pipeline scripts |
+| Colorblind-friendly UI | Amber/blue instead of red/green for results |
+| Configurable API_BASE | window.API_BASE ensures loose coupling between frontend and backend |
 
 ## Reproducing a Specific MLflow Run
 
 ```bash
-# Get the run ID from MLflow UI
 git checkout <commit_hash_from_mlflow_tags>
 dvc checkout
 mlflow run . -P config=training/configs/config_v1_simplecnn.yaml
 ```
 
 Every MLflow run is tagged with:
-- `git_commit`: exact code state
+- `git_commit_hash`: exact code state
 - `data_version`: v1
 - `model_name`: architecture used
+- `promotion_result`: champion/challenger outcome
+
+## Data Reproduction Note
+
+Data is versioned with DVC. The `data/raw.dvc` pointer file is committed
+to Git. The actual images are stored in a local DVC remote at:
+```
+C:\Users\HP\Desktop\mlops_dvc_remote
+```
+
+To reproduce on a different machine, copy this folder and run:
+```bash
+dvc remote modify local_remote url /path/to/mlops_dvc_remote
+dvc pull
+```

@@ -143,30 +143,67 @@ def _find_model_path(run_id: str, mlruns_path: str) -> str:
     )
 
 
-def _get_threshold_from_run(run_id: str) -> float:
-    """
-    Retrieve the best_threshold param logged during training.
+# def _get_threshold_from_run(run_id: str) -> float:
+#     """
+#     Retrieve the best_threshold param logged during training.
 
-    Args:
-        run_id (str): MLflow run ID.
+#     Args:
+#         run_id (str): MLflow run ID.
+
+#     Returns:
+#         float: Threshold value, or 0.35 as fallback.
+#     """
+#     try:
+#         client = MlflowClient()
+#         run = client.get_run(run_id)
+#         threshold = run.data.params.get("best_threshold", None)
+#         if threshold is not None:
+#             return float(threshold)
+#         logger.warning("No best_threshold in run %s. Using 0.35", run_id)
+#         return 0.35
+#     except Exception as e:
+#         logger.warning(
+#             "Could not fetch threshold from run %s: %s. Using 0.35",
+#             run_id, str(e)
+#         )
+#         return 0.35
+
+def _get_threshold_from_run(run_id: str) -> tuple:
+    """
+    Retrieve best_threshold and model_name directly from mlruns meta files.
+    Avoids MLflow client version mismatch issues.
 
     Returns:
-        float: Threshold value, or 0.35 as fallback.
+        tuple: (threshold, model_name)
     """
-    try:
-        client = MlflowClient()
-        run = client.get_run(run_id)
-        threshold = run.data.params.get("best_threshold", None)
-        if threshold is not None:
-            return float(threshold)
-        logger.warning("No best_threshold in run %s. Using 0.35", run_id)
-        return 0.35
-    except Exception as e:
-        logger.warning(
-            "Could not fetch threshold from run %s: %s. Using 0.35",
-            run_id, str(e)
-        )
-        return 0.35
+    import yaml
+    mlruns_path = _get_mlruns_path()
+    
+    # Search for the run's meta.yaml and params directly in filesystem
+    run_dirs = glob.glob(str(Path(mlruns_path) / "*" / run_id))
+    
+    for run_dir in run_dirs:
+        try:
+            # Read threshold from params file
+            threshold_file = Path(run_dir) / "params" / "best_threshold"
+            model_name_file = Path(run_dir) / "tags" / "model_name"
+            
+            threshold = 0.35
+            model_name = "unknown"
+            
+            if threshold_file.exists():
+                threshold = float(threshold_file.read_text().strip())
+                logger.info("Threshold from file: %.4f", threshold)
+            
+            if model_name_file.exists():
+                model_name = model_name_file.read_text().strip()
+                logger.info("Model name from file: %s", model_name)
+            
+            return threshold, model_name
+        except Exception as e:
+            logger.warning("Could not read run files: %s", e)
+    
+    return 0.35, "unknown"
 
 
 def load_model() -> bool:
@@ -208,15 +245,16 @@ def load_model() -> bool:
         model = mlflow.pytorch.load_model(model_path, map_location="cpu")
         model.eval()
 
-        # ── Fetch threshold ───────────────────────────────────────────────
-        threshold = _get_threshold_from_run(run_id)
+        #── Fetch threshold and model name ────────────────────────────────
+        threshold, model_name_tag = _get_threshold_from_run(run_id)
 
         # ── Cache in memory ───────────────────────────────────────────────
         _model = model
         _model_meta["version"] = str(version)
         _model_meta["run_id"] = run_id
         _model_meta["threshold"] = threshold
-
+        _model_meta["name"] = model_name_tag
+        
         # ── Update Prometheus metrics ─────────────────────────────────────
         MODEL_INFO.info({
             "version": str(version),
@@ -267,6 +305,7 @@ def check_and_reload() -> bool:
             current_version, latest_version
         )
         load_model()
+        
         return True
 
     return False

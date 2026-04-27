@@ -114,6 +114,10 @@ All models:
 - 13 panels: request rate, latency, predictions, drift score,
   misclassification rate, real-world recall/precision, model loaded, etc.
 - Auto-provisioned dashboard from `grafana/provisioning/`
+- 3 provisioned alert rules:
+  - Error rate > 5% (critical)
+  - Drift detected (warning)
+  - Misclassification rate > 10% (warning)
 - Accessible at `http://localhost:3000` (admin/admin)
 
 **Drift Detection**
