@@ -55,7 +55,7 @@ jobs:
       - name: Lint with flake8
         run: |
           flake8 airflow/scripts/ training/src/ backend/ tests/ \
-            --max-line-length=100 \
+            --max-line-length=300 \
             --ignore=E501,W503 \
             --exclude=__pycache__
 
