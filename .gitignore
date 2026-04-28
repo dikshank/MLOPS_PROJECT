@@ -67,3 +67,7 @@ htmlcov/
 .dvc/cache/
 .dvc/tmp/
 prod_test_data/
+
+mlruns.db
+
+mlflow.db
