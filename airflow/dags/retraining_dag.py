@@ -51,35 +51,44 @@ TRAINING_SCRIPT     = Path("/opt/airflow/training/src/train.py")
 
 def get_production_config() -> list:
     """Get training config for the current Production model."""
-    import mlflow
-    mlflow.set_tracking_uri("/opt/airflow/mlruns")
-    client = mlflow.tracking.MlflowClient()
-
+    import glob
+    import yaml
+    
+    mlruns_path = "/opt/airflow/mlruns"
+    
     try:
-        versions = client.get_latest_versions("melanoma_classifier", stages=["Production"])
-        if not versions:
-            logger.warning("No Production model found. Defaulting to mobilenet.")
-            return [Path("/opt/airflow/training/configs/config_v1_mobilenet.yaml")]
-
-        run = client.get_run(versions[0].run_id)
-        model_name = run.data.tags.get("model_name", "mobilenet_v3_small")
-
-        config_map = {
-            "mobilenet_v3_small": "config_v1_mobilenet.yaml",
-            "efficientnet_b0":    "config_v1_efficientnet.yaml",
-            "simplecnn":          "config_v1_simplecnn.yaml",
-            "simple_cnn":         "config_v1_simplecnn.yaml",
-        }
-
-        config_file = config_map.get(model_name, "config_v1_mobilenet.yaml")
-        config_path = Path(f"/opt/airflow/training/configs/{config_file}")
-        logger.info("Production model: %s → config: %s", model_name, config_file)
-        return [config_path]
-
+        # Find Production model from registry meta files directly
+        model_meta = Path(mlruns_path) / "models" / "melanoma_classifier" / "meta.yaml"
+        
+        # Find latest Production version by reading version meta files
+        versions_dir = Path(mlruns_path) / "models" / "melanoma_classifier"
+        version_dirs = sorted(versions_dir.glob("version-*"))
+        
+        for version_dir in reversed(version_dirs):
+            meta_path = version_dir / "meta.yaml"
+            if meta_path.exists():
+                with open(meta_path) as f:
+                    meta = yaml.safe_load(f)
+                if meta.get("current_stage") == "Production":
+                    run_id = meta.get("run_id")
+                    # Read model_name tag from run
+                    tag_file = Path(mlruns_path) / "*" / run_id / "tags" / "model_name"
+                    matches = glob.glob(str(tag_file))
+                    if matches:
+                        model_name = Path(matches[0]).read_text().strip()
+                        config_map = {
+                            "mobilenet_v3_small": "config_v1_mobilenet.yaml",
+                            "efficientnet_b0": "config_v1_efficientnet.yaml",
+                            "simplecnn": "config_v1_simplecnn.yaml",
+                            "simple_cnn": "config_v1_simplecnn.yaml",
+                        }
+                        config_file = config_map.get(model_name, "config_v1_mobilenet.yaml")
+                        logger.info("Production model: %s → config: %s", model_name, config_file)
+                        return [Path(f"/opt/airflow/training/configs/{config_file}")]
     except Exception as e:
-        logger.warning("Could not fetch production model: %s. Defaulting to mobilenet.", e)
-        return [Path("/opt/airflow/training/configs/config_v1_mobilenet.yaml")]
-
+        logger.warning("Could not fetch production model from files: %s. Defaulting to mobilenet.", e)
+    
+    return [Path("/opt/airflow/training/configs/config_v1_simplecnn.yaml")]
 # ─────────────────────────────────────────────────────────────────────────────
 # Task 1: Check trigger conditions
 # ─────────────────────────────────────────────────────────────────────────────
@@ -205,42 +214,43 @@ def prepare_feedback_data(**context) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def trigger_training(**context) -> None:
-    """
-    Run the training script with the MobileNet config.
+    import threading
 
-    This runs locally via subprocess. In demo mode, you can stop it
-    after a few batches to show the pipeline fires correctly.
-    """
-    if not TRAINING_SCRIPT.exists():
-        raise FileNotFoundError(
-            f"Training script not found: {TRAINING_SCRIPT}"
-        )
+    configs = get_production_config()
+    errors = []
 
-    for config in get_production_config():
+    def run_training(config):
         if not config.exists():
-            raise FileNotFoundError(
-                f"Training config not found: {config}"
-            )
-
-        logger.info(
-            "Starting retraining | script=%s | config=%s",
-            TRAINING_SCRIPT, config
-        )
-
+            errors.append(f"Config not found: {config}")
+            return
+        logger.info("Starting retraining | script=%s | config=%s", TRAINING_SCRIPT, config)
         result = subprocess.run(
             ["python", str(TRAINING_SCRIPT), "--config", str(config)],
             capture_output=True,
-            text=True,
-            timeout=3600  # 1 hour max per model
+            text=True
         )
-
         if result.returncode != 0:
+            errors.append(f"{config.name}: {result.stderr[-500:]}")
             logger.error("Training failed for %s:\n%s", config.name, result.stderr)
-            raise RuntimeError(f"Training script failed for {config.name}: {result.stderr[-500:]}")
+        else:
+            logger.info("✅ Training complete for %s:\n%s", config.name, result.stdout[-500:])
 
-        logger.info("✅ Training complete for %s:\n%s", config.name, result.stdout[-500:])
+    threads = []
+    for config in configs:
+        t = threading.Thread(target=run_training, args=(config,))
+        t.daemon = True
+        t.start()
+        threads.append(t)
 
+    # Join with periodic timeout to keep Airflow heartbeat alive
+    for t in threads:
+        while t.is_alive():
+            t.join(timeout=30)
+            logger.info("Training still running...")
 
+    if errors:
+        raise RuntimeError(f"Training failed:\n" + "\n".join(errors))
+        
 # ─────────────────────────────────────────────────────────────────────────────
 # Task 4: Evaluate new model
 # ─────────────────────────────────────────────────────────────────────────────

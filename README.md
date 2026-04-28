@@ -93,7 +93,7 @@ docker compose -f docker-compose-airflow.yml build
 
 # Initialise Airflow database
 docker compose -f docker-compose-airflow.yml up airflow-init
-# Wait for "Airflow initialized" then Ctrl+C
+# Wait for "Airflow initialized"
 
 # Start Airflow
 docker compose -f docker-compose-airflow.yml up airflow-webserver airflow-scheduler
@@ -136,6 +136,7 @@ pyenv --version
 
 ```bash
 # Option A: Using MLflow Projects (recommended for reproducibility)
+python -c "import mlflow; mlflow.set_tracking_uri('./mlruns'); mlflow.set_experiment('baseline-v1'); print('Done')"
 mlflow run . --experiment-name baseline-v1 -P config=training/configs/config_v1_mobilenet.yaml
 mlflow run . --experiment-name baseline-v1 -e train_efficientnet
 mlflow run . --experiment-name baseline-v1 -e train_simplecnn
@@ -159,7 +160,6 @@ mlflow ui --backend-store-uri mlruns --port 5000
 ### Step 5 — Start all services
 
 ```bash
-docker network create mlops_network
 docker compose up --build
 ```
 
