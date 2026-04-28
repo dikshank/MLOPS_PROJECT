@@ -1,0 +1,136 @@
+schema: '2.0'
+stages:
+  validate:
+    cmd: python airflow/scripts/validate.py
+    deps:
+    - path: airflow/configs/pipeline_config_v1.yaml
+      hash: md5
+      md5: 5d5d4abb96bff4be908829644291bb6a
+      size: 2667
+    - path: airflow/scripts/validate.py
+      hash: md5
+      md5: 53e87c3792ddce9b899234d0d87e1e27
+      size: 4980
+    - path: data/raw
+      hash: md5
+      md5: 6b3d548565d7342172e44f942be99da9.dir
+      size: 642574
+      nfiles: 800
+    outs:
+    - path: data/validate_done.flag
+      hash: md5
+      md5: d41d8cd98f00b204e9800998ecf8427e
+      size: 0
+  split:
+    cmd: python airflow/scripts/split.py
+    deps:
+    - path: airflow/configs/pipeline_config_v1.yaml
+      hash: md5
+      md5: 5d5d4abb96bff4be908829644291bb6a
+      size: 2667
+    - path: airflow/scripts/split.py
+      hash: md5
+      md5: b2da8be49681b112afd6729bdfb427d6
+      size: 12469
+    - path: data/validate_done.flag
+      hash: md5
+      md5: d41d8cd98f00b204e9800998ecf8427e
+      size: 0
+    outs:
+    - path: data/processed/v1/manifests
+      hash: md5
+      md5: fb16339062ab1e287ced3f875cb2008e.dir
+      size: 195845
+      nfiles: 3
+  preprocess:
+    cmd: python airflow/scripts/preprocess.py
+    deps:
+    - path: airflow/configs/pipeline_config_v1.yaml
+      hash: md5
+      md5: 5d5d4abb96bff4be908829644291bb6a
+      size: 2667
+    - path: airflow/scripts/preprocess.py
+      hash: md5
+      md5: 3fe08d3ecdd7888528d3705723ddf4ad
+      size: 15938
+    - path: data/processed/v1/manifests
+      hash: md5
+      md5: fb16339062ab1e287ced3f875cb2008e.dir
+      size: 195845
+      nfiles: 3
+    outs:
+    - path: data/processed/v1/test
+      hash: md5
+      md5: 48c13c301572858fc7ec07aa2ea24815.dir
+      size: 619120
+      nfiles: 600
+    - path: data/processed/v1/train
+      hash: md5
+      md5: 1ef9c7f27a2ae2ea3c1699915f2a8c84.dir
+      size: 1958428
+      nfiles: 1626
+    - path: data/processed/v1/val
+      hash: md5
+      md5: 05cb528185ef791b3e929ac0bf066a09.dir
+      size: 37346
+      nfiles: 36
+  baseline_stats:
+    cmd: python airflow/scripts/baseline_stats.py
+    deps:
+    - path: airflow/configs/pipeline_config_v1.yaml
+      hash: md5
+      md5: 5d5d4abb96bff4be908829644291bb6a
+      size: 2667
+    - path: airflow/scripts/baseline_stats.py
+      hash: md5
+      md5: 4979dc8db6dbc4c8caf7a976b5be0c59
+      size: 8422
+    - path: data/processed/v1/train
+      hash: md5
+      md5: 1ef9c7f27a2ae2ea3c1699915f2a8c84.dir
+      size: 1958428
+      nfiles: 1626
+    outs:
+    - path: data/baseline_stats/v1_stats.json
+      hash: md5
+      md5: ebdef818cfa8650f96f97039b02cd9a9
+      size: 1304
+  train:
+    cmd: python training/src/train.py --config 
+      training/configs/config_v1_mobilenet.yaml
+    deps:
+    - path: data/processed/v1/manifests
+      hash: md5
+      md5: fb16339062ab1e287ced3f875cb2008e.dir
+      size: 195845
+      nfiles: 3
+    - path: training/configs/config_v1_mobilenet.yaml
+      hash: md5
+      md5: 3ef755cdbdabeafe36a35f88bfd59d5c
+      size: 1821
+    - path: training/src/dataset.py
+      hash: md5
+      md5: d57fd2bc3ac7a0ea0d81089350425ab6
+      size: 6590
+    - path: training/src/evaluate.py
+      hash: md5
+      md5: 9e6e51cf4b25424dbc2e8da0313f0b77
+      size: 9925
+    - path: training/src/mlflow_utils.py
+      hash: md5
+      md5: 7c511d78b73839828562b9b93b3b6314
+      size: 18631
+    - path: training/src/model.py
+      hash: md5
+      md5: 18a87dd0e348402be6d7716300f4a0ee
+      size: 10499
+    - path: training/src/train.py
+      hash: md5
+      md5: 595571858cb0ec11841caf5851e1075b
+      size: 16965
+    outs:
+    - path: training/models/v1
+      hash: md5
+      md5: 9bac279dcd6714bde9e7028a4c3faaba.dir
+      size: 22971247
+      nfiles: 3

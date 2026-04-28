@@ -59,17 +59,14 @@ stages:
 
   # ── Stage 5: Train model ───────────────────────────────────────────────
   train:
-    cmd: python training/src/train.py --config training/configs/config_v1_mobilenet.yaml
-    deps:
-      - training/src/train.py
-      - training/src/dataset.py
-      - training/src/model.py
-      - training/src/evaluate.py
-      - training/src/mlflow_utils.py
-      - training/configs/config_v1_mobilenet.yaml
-      - data/processed/v1/manifests
-    outs:
-      - training/models/v1
-    metrics:
-      - training/artifacts/v1_mobilenet/val_metrics.json:
-          cache: false
+      cmd: python training/src/train.py --config training/configs/config_v1_mobilenet.yaml
+      deps:
+        - training/src/train.py
+        - training/src/dataset.py
+        - training/src/model.py
+        - training/src/evaluate.py
+        - training/src/mlflow_utils.py
+        - training/configs/config_v1_mobilenet.yaml
+        - data/processed/v1/manifests
+      outs:
+        - training/models/v1
