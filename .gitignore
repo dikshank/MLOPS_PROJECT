@@ -66,3 +66,4 @@ htmlcov/
 # ── DVC internal (keep .dvc files, ignore cache) ───────────
 .dvc/cache/
 .dvc/tmp/
+prod_test_data/
