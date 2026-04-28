@@ -16,11 +16,6 @@ stages:
       md5: 6b3d548565d7342172e44f942be99da9.dir
       size: 642574
       nfiles: 800
-    outs:
-    - path: data/validate_done.flag
-      hash: md5
-      md5: d41d8cd98f00b204e9800998ecf8427e
-      size: 0
   split:
     cmd: python airflow/scripts/split.py
     deps:
@@ -32,10 +27,11 @@ stages:
       hash: md5
       md5: b2da8be49681b112afd6729bdfb427d6
       size: 12469
-    - path: data/validate_done.flag
+    - path: data/raw
       hash: md5
-      md5: d41d8cd98f00b204e9800998ecf8427e
-      size: 0
+      md5: 6b3d548565d7342172e44f942be99da9.dir
+      size: 642574
+      nfiles: 800
     outs:
     - path: data/processed/v1/manifests
       hash: md5

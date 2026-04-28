@@ -14,28 +14,22 @@
 
 stages:
 
-  # ── Stage 1: Validate raw images ──────────────────────────────────────
   validate:
     cmd: python airflow/scripts/validate.py
     deps:
       - airflow/scripts/validate.py
       - airflow/configs/pipeline_config_v1.yaml
       - data/raw
-    outs:
-      - data/validate_done.flag:
-          cache: false
 
-  # ── Stage 2: Split dataset ─────────────────────────────────────────────
   split:
     cmd: python airflow/scripts/split.py
     deps:
       - airflow/scripts/split.py
       - airflow/configs/pipeline_config_v1.yaml
-      - data/validate_done.flag
+      - data/raw
     outs:
       - data/processed/v1/manifests
 
-  # ── Stage 3: Preprocess images ─────────────────────────────────────────
   preprocess:
     cmd: python airflow/scripts/preprocess.py
     deps:
@@ -47,7 +41,6 @@ stages:
       - data/processed/v1/val
       - data/processed/v1/test
 
-  # ── Stage 4: Compute baseline statistics ──────────────────────────────
   baseline_stats:
     cmd: python airflow/scripts/baseline_stats.py
     deps:
@@ -57,16 +50,15 @@ stages:
     outs:
       - data/baseline_stats/v1_stats.json
 
-  # ── Stage 5: Train model ───────────────────────────────────────────────
   train:
-      cmd: python training/src/train.py --config training/configs/config_v1_mobilenet.yaml
-      deps:
-        - training/src/train.py
-        - training/src/dataset.py
-        - training/src/model.py
-        - training/src/evaluate.py
-        - training/src/mlflow_utils.py
-        - training/configs/config_v1_mobilenet.yaml
-        - data/processed/v1/manifests
-      outs:
-        - training/models/v1
+    cmd: python training/src/train.py --config training/configs/config_v1_mobilenet.yaml
+    deps:
+      - training/src/train.py
+      - training/src/dataset.py
+      - training/src/model.py
+      - training/src/evaluate.py
+      - training/src/mlflow_utils.py
+      - training/configs/config_v1_mobilenet.yaml
+      - data/processed/v1/manifests
+    outs:
+      - training/models/v1
