@@ -160,6 +160,7 @@ mlflow ui --backend-store-uri mlruns --port 5000
 ### Step 5 — Start all services
 
 ```bash
+docker run --rm -v ${PWD}/mlruns:/mlruns alpine chmod -R 777 /mlruns #optional if you have done a hard reset
 docker compose up --build
 ```
 

@@ -227,6 +227,7 @@ def trigger_training(**context) -> None:
         result = subprocess.run(
             ["python", str(TRAINING_SCRIPT), "--config", str(config)],
             capture_output=True,
+            env={**os.environ, "TMPDIR": "/opt/airflow/mlruns"},
             text=True
         )
         if result.returncode != 0:

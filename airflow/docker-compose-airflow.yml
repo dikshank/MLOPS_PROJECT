@@ -30,7 +30,7 @@ x-airflow-common: &airflow-common
     AIRFLOW__METRICS__PROMETHEUS_ON: "true"
     AIRFLOW__METRICS__PROMETHEUS_PORT: 8793
     PYTHONPATH: /opt/airflow/scripts
-    TMPDIR: /opt/airflow/mlruns
+    # TMPDIR: /opt/airflow/mlruns
     AIRFLOW__SCHEDULER__SCHEDULER_HEARTBEAT_SEC: 60
     AIRFLOW__CORE__HEARTBEAT_INTERVAL: 60
     AIRFLOW__SCHEDULER__JOB_HEARTBEAT_SEC: 120

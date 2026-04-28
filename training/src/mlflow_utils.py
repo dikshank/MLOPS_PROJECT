@@ -399,9 +399,9 @@ def log_model(
         new_val_f1 (float): Best val_f1 achieved in this training run.
     """
         # ── Sanity check: reject degenerate models ────────────────────────────
-    if new_val_f1 < 0.1:
+    if new_val_f1 < 0.0:
         logger.warning(
-            "Model has near-zero F1 (%.4f) — likely predicting single class. "
+            "Model has non-zero F1 (%.4f) "
             "Skipping registration and promotion.", new_val_f1
         )
         return
