@@ -90,7 +90,7 @@ The system meets acceptance criteria when ALL of the following are true:
 | M05 | Prediction counter present | — | melanoma_prediction_total in body |
 | M06 | Counter increments after predict | After /predict | counter > 0 |
 
-### 3.5 POST /feedback (13 tests)
+### 3.5 POST /feedback (14 tests)
 
 | ID | Test Case | Input | Expected Output |
 |---|---|---|---|
@@ -193,6 +193,6 @@ Docker:  not required (API tests use TestClient with mocks)
 |---|---|
 | POST /predict | 15 |
 | GET /health + /ready + /metrics | 17 |
-| POST /feedback | 13 |
+| POST /feedback | 14 |
 | Airflow pipeline scripts | 22 |
 | **Total** | **68** |

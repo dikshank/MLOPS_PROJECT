@@ -5,7 +5,7 @@
 | Criterion | Target | Actual | Status |
 |-----------|--------|--------|--------|
 | All unit tests pass | 100% | 100% (68/68) | ✅ PASS |
-| /predict latency | < 500ms | ~150ms avg | ✅ PASS |
+| /predict latency | < 200ms | ~150ms avg | ✅ PASS |
 | Error rate | < 5% | 0% | ✅ PASS |
 | Docker services start | No errors | All 5 services up | ✅ PASS |
 | Model loaded at startup | Yes | version=13 (SimpleCNN) | ✅ PASS |

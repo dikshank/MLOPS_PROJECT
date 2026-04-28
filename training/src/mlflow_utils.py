@@ -412,10 +412,6 @@ def log_model(
     logger.info(".pth checkpoint logged as artifact")
 
     # ── Register model in MLflow registry ────────────────────────────────
-    # This creates a new version every time — starts in "None" stage
-    # model_uri = f"runs:/{mlflow.active_run().info.run_id}/pytorch_model"
-
-    # ── Register model in MLflow registry ────────────────────────────────
     mlflow.pytorch.log_model(
         pytorch_model=model,
         artifact_path="pytorch_model",

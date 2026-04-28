@@ -144,7 +144,7 @@ melanoma_drift_score             — pixel histogram MAE vs baseline
 melanoma_drift_detected          — 1 if drift > threshold, else 0
 melanoma_retraining_triggered    — count of retraining triggers
 melanoma_model_loaded            — 1 if model loaded, 0 otherwise
-melanoma_model_info              — current model version and metadata
+
 ```
 
 ---
