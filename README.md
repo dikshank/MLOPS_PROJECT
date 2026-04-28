@@ -1,7 +1,7 @@
 # Melanoma Detection MLOps Pipeline
-
+##Dikshank Sihag - DA25M009
 End-to-end MLOps pipeline for low-resolution melanoma classification.
-Built for resource-constrained, on-premise environments (CPU only, no cloud).
+Built for resource-constrained, on-premise environments
 
 ## Architecture
 
