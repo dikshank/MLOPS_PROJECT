@@ -136,7 +136,7 @@ pyenv --version
 
 ```bash
 # Option A: Using MLflow Projects (recommended for reproducibility)
-python -c "import mlflow; mlflow.set_tracking_uri('./mlruns'); mlflow.set_experiment('baseline-v1'); print('Done')"
+C:\Users\HP\AppData\Local\Programs\Python\Python314\python.exe -c "import mlflow; mlflow.set_tracking_uri('./mlruns'); mlflow.set_experiment('baseline-v1'); print('Done')"
 mlflow run . --experiment-name baseline-v1 -P config=training/configs/config_v1_mobilenet.yaml
 mlflow run . --experiment-name baseline-v1 -e train_efficientnet
 mlflow run . --experiment-name baseline-v1 -e train_simplecnn
@@ -271,7 +271,7 @@ mlops_project/
 |----------|-----------|
 | SequentialExecutor + SQLite | No extra containers needed for Airflow |
 | CPU only | On-premise constraint, Intel UHD 620 |
-| 32x32 → 64x64 upscaling | Proves resolution is bottleneck; models ready for v2 without config changes |
+| 32x32 → 64x64 upscaling | Proves resolution is bottleneck; models ready for higher-resolution data in future without config changes |
 | 3 model architectures | Pretrained (MobileNet, EfficientNet) vs from-scratch (SimpleCNN) comparison |
 | Recall as primary metric | Missing cancer (FN) is worse than false alarm (FP) |
 | F1 as tiebreaker | When recall is tied, pick more balanced model |
